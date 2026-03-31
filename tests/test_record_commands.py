@@ -432,3 +432,51 @@ def test_import_map_dedup_uses_mapped_column(openkiln_home, tmp_path):
     ).fetchone()[0]
     conn.close()
     assert count == 1  # not duplicated
+
+
+def test_domain_normalised_on_import(openkiln_home, tmp_path):
+    """Domain field is normalised on import."""
+    _setup(runner, openkiln_home)
+    f = _make_csv(tmp_path, [
+        {"domain": "https://www.acme.com/about",
+         "name": "Acme Corp"},
+        {"domain": "http://corp.io/",
+         "name": "Corp"},
+        {"domain": "www.example.com",
+         "name": "Example"},
+        {"domain": "clean.com",
+         "name": "Clean"},
+    ])
+    runner.invoke(
+        app,
+        ["record", "import", str(f), "--type", "company",
+         "--skill", "crm", "--apply"],
+    )
+
+    import sqlite3
+    conn = sqlite3.connect(openkiln_home / "skills" / "crm.db")
+    domains = {
+        row[0] for row in conn.execute(
+            "SELECT domain FROM companies"
+        ).fetchall()
+    }
+    conn.close()
+
+    assert "acme.com" in domains
+    assert "corp.io" in domains
+    assert "example.com" in domains
+    assert "clean.com" in domains
+    # none should have protocol or www
+    assert not any(d.startswith("http") for d in domains)
+    assert not any(d.startswith("www.") for d in domains)
+
+
+def test_normalise_domain_helper():
+    """_normalise_domain handles all common cases."""
+    from openkiln.commands.record import _normalise_domain
+    assert _normalise_domain("https://www.acme.com/about") == "acme.com"
+    assert _normalise_domain("http://acme.com") == "acme.com"
+    assert _normalise_domain("www.acme.com") == "acme.com"
+    assert _normalise_domain("acme.com/") == "acme.com"
+    assert _normalise_domain("acme.com") == "acme.com"
+    assert _normalise_domain("") == ""

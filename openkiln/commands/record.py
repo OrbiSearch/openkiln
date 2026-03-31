@@ -372,6 +372,10 @@ def import_records(
                                         field_val = (
                                             row.get(csv_col, "").strip() or None
                                         )
+                                        if schema_col == "domain" and field_val:
+                                            field_val = _normalise_domain(
+                                                field_val
+                                            )
                                         fields[schema_col] = field_val
 
                                 if fields:
@@ -414,6 +418,8 @@ def import_records(
                                 field_val = (
                                     row.get(csv_col, "").strip() or None
                                 )
+                                if schema_col == "domain" and field_val:
+                                    field_val = _normalise_domain(field_val)
                                 fields[schema_col] = field_val
 
                         cols = ", ".join(fields.keys())
@@ -452,6 +458,38 @@ def import_records(
         output_json=output_json,
         upsert=upsert,
     )
+
+
+def _normalise_domain(value: str) -> str:
+    """
+    Normalises a domain value stripped from common URL noise.
+    Called automatically when the target field is 'domain'.
+
+    Examples:
+        https://www.acme.com/about  →  acme.com
+        http://acme.com             →  acme.com
+        www.acme.com                →  acme.com
+        acme.com                    →  acme.com
+        acme.com/                   →  acme.com
+    """
+    if not value:
+        return value
+
+    # strip protocol
+    for prefix in ("https://", "http://"):
+        if value.lower().startswith(prefix):
+            value = value[len(prefix):]
+
+    # strip www.
+    if value.lower().startswith("www."):
+        value = value[4:]
+
+    # strip path, query string, fragment
+    value = value.split("/")[0]
+    value = value.split("?")[0]
+    value = value.split("#")[0]
+
+    return value.strip().lower()
 
 
 # ── Internal helpers ──────────────────────────────────────────

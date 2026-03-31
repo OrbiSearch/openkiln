@@ -66,6 +66,13 @@ def _mount_skill_clis() -> None:
     except Exception:
         pass  # never crash startup due to skill discovery
 
+# run pending skill migrations on startup — silent on success
+try:
+    from openkiln import db as _db
+    _db.migrate_installed_skills()
+except Exception:
+    pass
+
 _mount_skill_clis()
 
 if __name__ == "__main__":

@@ -343,87 +343,101 @@ def import_records(
 
     attach = [skill] if skill else None
 
-    with db.transaction(attach_skills=attach) as conn:
-        for batch_start in range(0, total_rows, db.BATCH_SIZE):
-            batch = all_rows[batch_start:batch_start + db.BATCH_SIZE]
+    try:
+        with db.transaction(attach_skills=attach) as conn:
+            for batch_start in range(0, total_rows, db.BATCH_SIZE):
+                batch = all_rows[batch_start:batch_start + db.BATCH_SIZE]
 
-            for row in batch:
-                # dedup check
-                if dedup_key:
-                    val = row.get(dedup_csv_col, "").strip().lower()
-                    if val and val in existing:
-                        if not upsert:
-                            skipped_dupes += 1
-                            continue
-                        # upsert — update existing record
-                        if skill and skill_columns:
-                            skill_col_lower = {
-                                c.lower(): c for c in skill_columns
-                            }
-                            table = _skill_table_name(skill, type_)
-                            fields = {}
-                            for csv_col in matched_columns:
-                                schema_col = (
-                                    explicit_mappings.get(csv_col.lower())
-                                    or skill_col_lower.get(csv_col.lower())
-                                )
-                                if schema_col and schema_col != dedup_key:
-                                    field_val = (
-                                        row.get(csv_col, "").strip() or None
+                for row in batch:
+                    # dedup check
+                    if dedup_key:
+                        val = row.get(dedup_csv_col, "").strip().lower()
+                        if val and val in existing:
+                            if not upsert:
+                                skipped_dupes += 1
+                                continue
+                            # upsert — update existing record
+                            if skill and skill_columns:
+                                skill_col_lower = {
+                                    c.lower(): c for c in skill_columns
+                                }
+                                table = _skill_table_name(skill, type_)
+                                fields = {}
+                                for csv_col in matched_columns:
+                                    schema_col = (
+                                        explicit_mappings.get(csv_col.lower())
+                                        or skill_col_lower.get(csv_col.lower())
                                     )
-                                    fields[schema_col] = field_val
+                                    if schema_col and schema_col != dedup_key:
+                                        field_val = (
+                                            row.get(csv_col, "").strip() or None
+                                        )
+                                        fields[schema_col] = field_val
 
-                            if fields:
-                                set_clause = ", ".join(
-                                    f"{k} = ?" for k in fields.keys()
-                                )
-                                conn.execute(
-                                    f"UPDATE {skill}.{table} "
-                                    f"SET {set_clause} "
-                                    f"WHERE {dedup_key} = ?",
-                                    list(fields.values()) + [val],
-                                )
-                        imported += 1
-                        continue
-                    if val:
-                        existing.add(val)
+                                if fields:
+                                    set_clause = ", ".join(
+                                        f"{k} = ?" for k in fields.keys()
+                                    )
+                                    conn.execute(
+                                        f"UPDATE {skill}.{table} "
+                                        f"SET {set_clause} "
+                                        f"WHERE {dedup_key} = ?",
+                                        list(fields.values()) + [val],
+                                    )
+                            imported += 1
+                            continue
+                        if val:
+                            existing.add(val)
 
-                # insert core record
-                cursor = conn.execute(
-                    "INSERT INTO records (type) VALUES (?)",
-                    (type_,)
-                )
-                record_id = cursor.lastrowid
-
-                # insert skill record if skill provided
-                if skill and skill_columns:
-                    skill_col_lower = {
-                        c.lower(): c for c in skill_columns
-                    }
-                    table = _skill_table_name(skill, type_)
-                    fields = {"record_id": record_id}
-
-                    for csv_col in matched_columns:
-                        # explicit mapping takes precedence
-                        schema_col = (
-                            explicit_mappings.get(csv_col.lower())
-                            or skill_col_lower.get(csv_col.lower())
-                        )
-                        if schema_col:
-                            field_val = (
-                                row.get(csv_col, "").strip() or None
-                            )
-                            fields[schema_col] = field_val
-
-                    cols = ", ".join(fields.keys())
-                    placeholders = ", ".join(["?"] * len(fields))
-                    conn.execute(
-                        f"INSERT INTO {skill}.{table} "
-                        f"({cols}) VALUES ({placeholders})",
-                        list(fields.values()),
+                    # insert core record
+                    cursor = conn.execute(
+                        "INSERT INTO records (type) VALUES (?)",
+                        (type_,)
                     )
+                    record_id = cursor.lastrowid
 
-                imported += 1
+                    # insert skill record if skill provided
+                    if skill and skill_columns:
+                        skill_col_lower = {
+                            c.lower(): c for c in skill_columns
+                        }
+                        table = _skill_table_name(skill, type_)
+                        fields = {"record_id": record_id}
+
+                        for csv_col in matched_columns:
+                            # explicit mapping takes precedence
+                            schema_col = (
+                                explicit_mappings.get(csv_col.lower())
+                                or skill_col_lower.get(csv_col.lower())
+                            )
+                            if schema_col:
+                                field_val = (
+                                    row.get(csv_col, "").strip() or None
+                                )
+                                fields[schema_col] = field_val
+
+                        cols = ", ".join(fields.keys())
+                        placeholders = ", ".join(["?"] * len(fields))
+                        conn.execute(
+                            f"INSERT INTO {skill}.{table} "
+                            f"({cols}) VALUES ({placeholders})",
+                            list(fields.values()),
+                        )
+
+                    imported += 1
+    except Exception as e:
+        err_str = str(e)
+        if "table" in err_str.lower() and (
+            "no such column" in err_str.lower()
+            or "no such table" in err_str.lower()
+        ):
+            rprint(
+                f"[red]✗ Skill '{skill}' schema is out of date.[/red]\n"
+                f"Run: [bold]openkiln skill update {skill}[/bold]\n"
+                f"Then retry your import."
+            )
+            raise typer.Exit(code=1)
+        raise
 
     _print_import_result(
         dry_run=False,

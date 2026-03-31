@@ -141,12 +141,10 @@ def init_core() -> None:
 
 def init_skill(skill_name: str) -> None:
     """
-    Creates a skill database and applies all schema migrations in order.
-    Migration files must be at:
-      openkiln/skills/<skill_name>/schema/NNN_*.sql
-    Runs all .sql files in filename order.
-    Safe to call multiple times — CREATE TABLE IF NOT EXISTS guards apply.
-    Called by openkiln skill install and on startup for existing skills.
+    Creates a skill database and applies any unapplied schema migrations.
+    Tracks applied migrations in a schema_migrations table per skill db.
+    Safe to call multiple times — only unapplied migrations are run.
+    Called by openkiln skill install and openkiln skill update.
     """
     schema_dir = SKILLS_DIR / skill_name / "schema"
     if not schema_dir.exists():
@@ -167,12 +165,67 @@ def init_skill(skill_name: str) -> None:
 
     skill_conn = sqlite3.connect(db_path)
     try:
+        # ensure migrations tracking table exists
+        skill_conn.execute("""
+            CREATE TABLE IF NOT EXISTS schema_migrations (
+                filename   TEXT PRIMARY KEY,
+                applied_at TEXT NOT NULL DEFAULT (datetime('now'))
+            )
+        """)
+        skill_conn.commit()
+
+        # find which migrations have already been applied
+        applied = {
+            row[0] for row in skill_conn.execute(
+                "SELECT filename FROM schema_migrations"
+            ).fetchall()
+        }
+
+        # apply only unapplied migrations in order
+        newly_applied = []
         for migration_file in migration_files:
+            filename = migration_file.name
+            if filename in applied:
+                continue
             sql = migration_file.read_text()
             skill_conn.executescript(sql)
-        skill_conn.commit()
+            skill_conn.execute(
+                "INSERT INTO schema_migrations (filename) VALUES (?)",
+                (filename,)
+            )
+            skill_conn.commit()
+            newly_applied.append(filename)
+
+        return newly_applied
+
     finally:
         skill_conn.close()
+
+
+def migrate_installed_skills() -> None:
+    """
+    Runs pending schema migrations for all installed skills.
+    Called automatically on CLI startup.
+    Silent on success. Warns if a migration fails.
+    """
+    if not check_connection():
+        return  # db not initialised yet — skip
+
+    try:
+        with connection() as conn:
+            skills = conn.execute(
+                "SELECT skill_name FROM installed_skills"
+            ).fetchall()
+
+        for row in skills:
+            skill_name = row["skill_name"]
+            try:
+                newly_applied = init_skill(skill_name)
+                # silent on success — only log if migrations were applied
+            except Exception:
+                pass  # never crash startup due to migration failure
+    except Exception:
+        pass  # never crash startup
 
 
 # ── Health check ──────────────────────────────────────────────

@@ -224,6 +224,78 @@ def info(
     console.print()
 
 
+@app.command("update")
+def update(
+    skill_name: str = typer.Argument(..., help="Skill name to update."),
+    output_json: bool = typer.Option(
+        False, "--json", help="Output as JSON."
+    ),
+) -> None:
+    """
+    Apply pending schema migrations for an installed skill.
+    Run after upgrading OpenKiln to pick up new skill schema changes.
+    """
+    if not db.check_connection():
+        rprint(
+            "[red]✗ Database not found.[/red]\n"
+            "Run [bold]openkiln init[/bold] first."
+        )
+        raise typer.Exit(code=1)
+
+    # check skill is installed
+    with db.connection() as conn:
+        row = conn.execute(
+            "SELECT skill_name, skill_version FROM installed_skills "
+            "WHERE skill_name = ?",
+            (skill_name,)
+        ).fetchone()
+
+    if not row:
+        rprint(
+            f"[red]✗ Skill '{skill_name}' is not installed.[/red]\n"
+            f"Run: openkiln skill install {skill_name}"
+        )
+        raise typer.Exit(code=1)
+
+    # run pending migrations
+    try:
+        newly_applied = db.init_skill(skill_name)
+    except RuntimeError as e:
+        rprint(f"[red]✗ {e}[/red]")
+        raise typer.Exit(code=1)
+
+    # update version in installed_skills
+    new_version = _read_skill_version(skill_name)
+    with db.transaction() as conn:
+        conn.execute(
+            "UPDATE installed_skills SET skill_version = ?, "
+            "updated_at = datetime('now') WHERE skill_name = ?",
+            (new_version, skill_name)
+        )
+
+    if output_json:
+        typer.echo(json.dumps({
+            "skill_name": skill_name,
+            "version": new_version,
+            "migrations_applied": newly_applied,
+        }))
+        return
+
+    if newly_applied:
+        console.print(
+            f"\n[green]✓[/green] Skill '{skill_name}' updated "
+            f"to v{new_version}"
+        )
+        for m in newly_applied:
+            console.print(f"  Applied: {m}")
+    else:
+        console.print(
+            f"\n[green]✓[/green] Skill '{skill_name}' is already "
+            f"up to date (v{new_version})"
+        )
+    console.print()
+
+
 # ── Internal helpers ──────────────────────────────────────────
 
 def _read_skill_version(skill_name: str) -> str:

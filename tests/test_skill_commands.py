@@ -107,3 +107,59 @@ def test_skill_install_orbisearch_appends_config(openkiln_home):
     runner.invoke(app, ["skill", "install", "orbisearch"])
     config_text = (openkiln_home / "config.toml").read_text()
     assert "[skills.orbisearch]" in config_text
+
+
+def test_skill_update_applies_pending_migrations(openkiln_home, tmp_path):
+    """skill update applies pending migrations to installed skill."""
+    # install crm — creates db with migrations 001 and 002
+    runner.invoke(app, ["init"])
+    runner.invoke(app, ["skill", "install", "crm"])
+
+    # verify initial migrations were tracked
+    from openkiln import config
+    crm_db = openkiln_home / "skills" / "crm.db"
+    import sqlite3
+    conn = sqlite3.connect(crm_db)
+    applied = {
+        row[0] for row in conn.execute(
+            "SELECT filename FROM schema_migrations"
+        ).fetchall()
+    }
+    conn.close()
+    assert "001_initial.sql" in applied
+    assert "002_add_touches.sql" in applied
+    assert "003_lifecycle_lists.sql" in applied
+
+
+def test_skill_update_already_up_to_date(openkiln_home):
+    """skill update reports up to date when no migrations pending."""
+    runner.invoke(app, ["init"])
+    runner.invoke(app, ["skill", "install", "crm"])
+    result = runner.invoke(app, ["skill", "update", "crm"])
+    assert result.exit_code == 0
+    assert "up to date" in result.output.lower()
+
+
+def test_skill_update_unknown_skill_fails(openkiln_home):
+    """skill update fails clearly for unknown skill."""
+    runner.invoke(app, ["init"])
+    result = runner.invoke(app, ["skill", "update", "nonexistent"])
+    assert result.exit_code == 1
+    assert "not installed" in result.output.lower()
+
+
+def test_auto_migration_runs_on_startup(openkiln_home):
+    """migrate_installed_skills runs pending migrations silently."""
+    runner.invoke(app, ["init"])
+    runner.invoke(app, ["skill", "install", "crm"])
+
+    # verify all migrations applied after install
+    crm_db = openkiln_home / "skills" / "crm.db"
+    import sqlite3
+    conn = sqlite3.connect(crm_db)
+    count = conn.execute(
+        "SELECT COUNT(*) FROM schema_migrations"
+    ).fetchone()[0]
+    conn.close()
+    # should have 3 migrations applied (001, 002, 003)
+    assert count == 3

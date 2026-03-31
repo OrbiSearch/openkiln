@@ -314,3 +314,208 @@ def test_crm_reset_unknown_entity_fails(openkiln_home):
     )
     assert result.exit_code == 1
     assert "Unknown entity" in result.output
+
+
+def _insert_company(openkiln_home, **kwargs) -> int:
+    """Helper: insert a company directly into crm.db."""
+    from openkiln import db
+    with db.transaction() as conn:
+        cursor = conn.execute(
+            "INSERT INTO records (type) VALUES ('company')"
+        )
+        record_id = cursor.lastrowid
+
+    crm_db = openkiln_home / "skills" / "crm.db"
+    conn = sqlite3.connect(crm_db)
+    fields = {"record_id": record_id}
+    fields.update(kwargs)
+    cols = ", ".join(fields.keys())
+    placeholders = ", ".join(["?"] * len(fields))
+    conn.execute(
+        f"INSERT INTO companies ({cols}) VALUES ({placeholders})",
+        list(fields.values())
+    )
+    conn.commit()
+    conn.close()
+    return record_id
+
+
+def test_link_contacts_by_email_domain(openkiln_home):
+    """link_contacts_to_companies matches email domain to company domain."""
+    _setup(runner, openkiln_home)
+    contact_id = _insert_contact(
+        openkiln_home, email="john@acme.com"
+    )
+    company_id = _insert_company(
+        openkiln_home, name="Acme Corp", domain="acme.com"
+    )
+
+    result = queries.link_contacts_to_companies(
+        contact_field="email_domain",
+        company_field="domain",
+        dry_run=False,
+    )
+
+    assert result["matched"] == 1
+    assert result["unmatched"] == 0
+
+    crm_db = openkiln_home / "skills" / "crm.db"
+    conn = sqlite3.connect(crm_db)
+    row = conn.execute(
+        "SELECT company_record_id FROM contacts WHERE record_id = ?",
+        (contact_id,)
+    ).fetchone()
+    conn.close()
+    assert row[0] == company_id
+
+
+def test_link_contacts_dry_run_does_not_write(openkiln_home):
+    """link_contacts_to_companies dry_run does not write links."""
+    _setup(runner, openkiln_home)
+    _insert_contact(openkiln_home, email="john@acme.com")
+    _insert_company(openkiln_home, domain="acme.com")
+
+    queries.link_contacts_to_companies(
+        contact_field="email_domain",
+        company_field="domain",
+        dry_run=True,
+    )
+
+    crm_db = openkiln_home / "skills" / "crm.db"
+    conn = sqlite3.connect(crm_db)
+    row = conn.execute(
+        "SELECT company_record_id FROM contacts LIMIT 1"
+    ).fetchone()
+    conn.close()
+    assert row[0] is None  # not written
+
+
+def test_link_contacts_skips_already_linked(openkiln_home):
+    """link_contacts_to_companies skips contacts already linked."""
+    _setup(runner, openkiln_home)
+    company_id = _insert_company(
+        openkiln_home, domain="acme.com"
+    )
+    _insert_contact(
+        openkiln_home,
+        email="john@acme.com",
+        company_record_id=company_id
+    )
+    _insert_company(openkiln_home, domain="other.com")
+    _insert_contact(openkiln_home, email="jane@other.com")
+
+    result = queries.link_contacts_to_companies(
+        contact_field="email_domain",
+        company_field="domain",
+        dry_run=False,
+        overwrite=False,
+    )
+
+    assert result["skipped"] == 1
+    assert result["matched"] == 1
+
+
+def test_link_contacts_overwrite(openkiln_home):
+    """link_contacts_to_companies overwrites existing links when requested."""
+    _setup(runner, openkiln_home)
+    old_company_id = _insert_company(
+        openkiln_home, domain="old.com"
+    )
+    new_company_id = _insert_company(
+        openkiln_home, domain="acme.com"
+    )
+    contact_id = _insert_contact(
+        openkiln_home,
+        email="john@acme.com",
+        company_record_id=old_company_id
+    )
+
+    result = queries.link_contacts_to_companies(
+        contact_field="email_domain",
+        company_field="domain",
+        dry_run=False,
+        overwrite=True,
+    )
+
+    assert result["matched"] == 1
+
+    crm_db = openkiln_home / "skills" / "crm.db"
+    conn = sqlite3.connect(crm_db)
+    row = conn.execute(
+        "SELECT company_record_id FROM contacts WHERE record_id = ?",
+        (contact_id,)
+    ).fetchone()
+    conn.close()
+    assert row[0] == new_company_id
+
+
+def test_link_contact_manually(openkiln_home):
+    """link_contact_to_company manually links a contact to a company."""
+    _setup(runner, openkiln_home)
+    contact_id = _insert_contact(openkiln_home, email="a@a.com")
+    company_id = _insert_company(openkiln_home, domain="a.com")
+
+    success = queries.link_contact_to_company(
+        contact_record_id=contact_id,
+        company_record_id=company_id,
+    )
+    assert success is True
+
+    crm_db = openkiln_home / "skills" / "crm.db"
+    conn = sqlite3.connect(crm_db)
+    row = conn.execute(
+        "SELECT company_record_id FROM contacts WHERE record_id = ?",
+        (contact_id,)
+    ).fetchone()
+    conn.close()
+    assert row[0] == company_id
+
+
+def test_crm_link_contacts_command_dry_run(openkiln_home):
+    """openkiln crm link contacts --dry-run reports without writing."""
+    _setup(runner, openkiln_home)
+    _insert_contact(openkiln_home, email="john@acme.com")
+    _insert_company(openkiln_home, domain="acme.com")
+
+    result = runner.invoke(
+        app, ["crm", "link", "contacts", "--dry-run"]
+    )
+    assert result.exit_code == 0
+    assert "1" in result.output
+
+
+def test_crm_link_contacts_command_apply(openkiln_home):
+    """openkiln crm link contacts --apply writes links."""
+    _setup(runner, openkiln_home)
+    contact_id = _insert_contact(openkiln_home, email="john@acme.com")
+    _insert_company(openkiln_home, domain="acme.com")
+
+    result = runner.invoke(
+        app, ["crm", "link", "contacts", "--apply"]
+    )
+    assert result.exit_code == 0
+
+    crm_db = openkiln_home / "skills" / "crm.db"
+    conn = sqlite3.connect(crm_db)
+    row = conn.execute(
+        "SELECT company_record_id FROM contacts WHERE record_id = ?",
+        (contact_id,)
+    ).fetchone()
+    conn.close()
+    assert row[0] is not None
+
+
+def test_crm_link_contact_manual_command(openkiln_home):
+    """openkiln crm link contact --contact-id --company-id works."""
+    _setup(runner, openkiln_home)
+    contact_id = _insert_contact(openkiln_home, email="a@a.com")
+    company_id = _insert_company(openkiln_home, domain="a.com")
+
+    result = runner.invoke(
+        app,
+        ["crm", "link", "contact",
+         "--contact-id", str(contact_id),
+         "--company-id", str(company_id)]
+    )
+    assert result.exit_code == 0
+    assert "linked" in result.output.lower()

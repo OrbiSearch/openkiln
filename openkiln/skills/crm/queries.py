@@ -335,3 +335,116 @@ def log_touch(
         return touch_id
     finally:
         conn.close()
+
+
+def link_contacts_to_companies(
+    contact_field: str = "email_domain",
+    company_field: str = "domain",
+    dry_run: bool = True,
+    overwrite: bool = False,
+) -> dict:
+    """
+    Links contacts to companies by matching fields.
+
+    contact_field: "email_domain" extracts domain from email,
+                   or any other contact column name for exact match.
+    company_field: company column to match against (e.g. "domain", "name").
+    dry_run: if True, counts matches without writing.
+    overwrite: if True, overwrites existing company_record_id links.
+
+    Returns dict with matched, unmatched, skipped counts.
+    """
+    conn = _crm_connection()
+    try:
+        # get all contacts
+        if overwrite:
+            contacts = conn.execute(
+                "SELECT record_id, email, company_name, company_record_id "
+                "FROM contacts"
+            ).fetchall()
+        else:
+            contacts = conn.execute(
+                "SELECT record_id, email, company_name, company_record_id "
+                "FROM contacts"
+            ).fetchall()
+
+        # get all companies indexed by match field
+        companies = conn.execute(
+            f"SELECT record_id, {company_field} FROM companies "
+            f"WHERE {company_field} IS NOT NULL"
+        ).fetchall()
+        company_lookup: dict[str, int] = {
+            row[company_field].strip().lower(): row["record_id"]
+            for row in companies
+            if row[company_field]
+        }
+
+        matched = 0
+        unmatched = 0
+        skipped = 0
+
+        for contact in contacts:
+            # skip already linked unless overwrite
+            if contact["company_record_id"] is not None and not overwrite:
+                skipped += 1
+                continue
+
+            # extract match value from contact
+            if contact_field == "email_domain":
+                email = contact["email"] or ""
+                if "@" in email:
+                    match_val = email.split("@", 1)[1].strip().lower()
+                else:
+                    match_val = ""
+            else:
+                match_val = (contact[contact_field] or "").strip().lower()
+
+            if not match_val:
+                unmatched += 1
+                continue
+
+            company_id = company_lookup.get(match_val)
+            if company_id is None:
+                unmatched += 1
+                continue
+
+            matched += 1
+
+            if not dry_run:
+                conn.execute(
+                    "UPDATE contacts SET company_record_id = ? "
+                    "WHERE record_id = ?",
+                    (company_id, contact["record_id"])
+                )
+
+        if not dry_run:
+            conn.commit()
+
+        return {
+            "matched": matched,
+            "unmatched": unmatched,
+            "skipped": skipped,
+        }
+    finally:
+        conn.close()
+
+
+def link_contact_to_company(
+    contact_record_id: int,
+    company_record_id: int,
+) -> bool:
+    """
+    Manually links a single contact to a company.
+    Returns True on success.
+    """
+    conn = _crm_connection()
+    try:
+        conn.execute(
+            "UPDATE contacts SET company_record_id = ? "
+            "WHERE record_id = ?",
+            (company_record_id, contact_record_id)
+        )
+        conn.commit()
+        return True
+    finally:
+        conn.close()

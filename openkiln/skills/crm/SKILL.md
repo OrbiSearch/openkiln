@@ -175,6 +175,44 @@ openkiln record import contacts.csv --type contact --skill crm \
 Without --upsert, records matching the dedup key (email for contacts,
 domain for companies) are skipped. With --upsert they are updated.
 
+## Linking contacts to companies
+
+company_record_id is nullable — a contact may or may not be linked
+to a company record. Linking is optional but enables company-level
+queries across contacts.
+
+Example query an agent can construct:
+  "All companies in segment X where no employee contacted in 30 days"
+  → join contacts to companies on company_record_id
+  → filter companies by segment
+  → filter where max(contacts.last_contacted_at) < 30 days ago
+
+After importing both contacts and companies, link them:
+```bash
+# preview — match email domain to company domain (default)
+openkiln crm link contacts --dry-run
+
+# apply
+openkiln crm link contacts --apply
+
+# match by company_name field instead
+openkiln crm link contacts \
+  --contact-field company_name \
+  --company-field name \
+  --apply
+
+# manually link a specific contact to a company
+openkiln crm link contact --contact-id 42 --company-id 7
+
+# overwrite existing links
+openkiln crm link contacts --overwrite --apply
+```
+
+The user or agent decides the linking strategy.
+No automatic linking is performed by OpenKiln.
+Unmatched contacts are left with company_record_id = NULL
+and still work correctly for all contact-level queries.
+
 ## Example workflow usage
 ```yaml
 source:

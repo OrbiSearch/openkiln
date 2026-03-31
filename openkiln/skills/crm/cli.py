@@ -28,6 +28,12 @@ touch_app = typer.Typer(
 )
 app.add_typer(touch_app, name="touch")
 
+link_app = typer.Typer(
+    help="Link contacts to companies.",
+    no_args_is_help=True,
+)
+app.add_typer(link_app, name="link")
+
 console = Console()
 
 
@@ -471,3 +477,92 @@ def reset(
         f"from CRM database.\n"
         f"[dim]Core records table is unchanged.[/dim]\n"
     )
+
+
+# ── link ──────────────────────────────────────────────────────
+
+@link_app.command("contacts")
+def link_contacts(
+    contact_field: str = typer.Option(
+        "email_domain", "--contact-field",
+        help="Contact field to match. 'email_domain' extracts domain from email."
+    ),
+    company_field: str = typer.Option(
+        "domain", "--company-field",
+        help="Company field to match against."
+    ),
+    overwrite: bool = typer.Option(
+        False, "--overwrite",
+        help="Overwrite existing company links."
+    ),
+    dry_run: bool = typer.Option(
+        True, "--dry-run/--apply",
+        help="Preview without writing (default)."
+    ),
+    output_json: bool = typer.Option(
+        False, "--json", help="Output as JSON."
+    ),
+) -> None:
+    """Link contacts to companies by matching fields."""
+    result = queries.link_contacts_to_companies(
+        contact_field=contact_field,
+        company_field=company_field,
+        dry_run=dry_run,
+        overwrite=overwrite,
+    )
+
+    if output_json:
+        typer.echo(json.dumps({
+            "dry_run": dry_run,
+            **result,
+        }))
+        return
+
+    mode = "[yellow]DRY RUN[/yellow]" if dry_run else "[green]APPLIED[/green]"
+    console.print(f"\n{mode} — link contacts to companies\n")
+    console.print(f"  [green]Matched:[/green]   {result['matched']:>6,}")
+    console.print(f"  [dim]Unmatched:[/dim] {result['unmatched']:>6,}")
+    if result["skipped"]:
+        console.print(f"  [dim]Skipped:[/dim]   {result['skipped']:>6,}")
+
+    if dry_run:
+        console.print(
+            f"\n  Run with [bold]--apply[/bold] to write links."
+        )
+    console.print()
+
+
+@link_app.command("contact")
+def link_contact(
+    contact_id: int = typer.Option(
+        ..., "--contact-id", help="Contact record ID."
+    ),
+    company_id: int = typer.Option(
+        ..., "--company-id", help="Company record ID."
+    ),
+    output_json: bool = typer.Option(
+        False, "--json", help="Output as JSON."
+    ),
+) -> None:
+    """Manually link a single contact to a company."""
+    success = queries.link_contact_to_company(
+        contact_record_id=contact_id,
+        company_record_id=company_id,
+    )
+
+    if output_json:
+        typer.echo(json.dumps({
+            "contact_id": contact_id,
+            "company_id": company_id,
+            "linked": success,
+        }))
+        return
+
+    if success:
+        console.print(
+            f"\n[green]✓[/green] Linked contact {contact_id} "
+            f"to company {company_id}\n"
+        )
+    else:
+        rprint("[red]✗ Failed to link contact to company.[/red]")
+        raise typer.Exit(code=1)

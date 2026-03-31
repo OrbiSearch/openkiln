@@ -173,6 +173,8 @@ def check_connection() -> bool:
     Returns False otherwise — never raises.
     Used by openkiln status and CLI startup check.
     """
+    if not core_db_path().exists():
+        return False
     try:
         with connection() as conn:
             conn.execute("SELECT 1")

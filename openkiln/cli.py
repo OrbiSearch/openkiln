@@ -1,21 +1,21 @@
-# cli.py
-#
-# Main CLI entry point using Typer.
-# Registers all command groups:
-#
-#   openkiln init        — onboarding wizard
-#   openkiln status      — installation summary
-#   openkiln record      — record operations (import, list, clean)
-#   openkiln workflow    — workflow operations (run, validate, template,
-#                          schedule, unschedule, history)
-#   openkiln skill       — skill operations (install, uninstall, list,
-#                          info, update)
-#
-# Global flags available on all commands:
-#   --json               — machine-readable output (for agents)
-#   --dry-run            — preview without writing data (default)
-#   --apply              — required to write data
-#
-# No command ever prompts for interactive input.
-# If required input is missing, command fails with a clear error message.
-# Every destructive command requires --apply flag.
+import typer
+from openkiln.commands import init, status, workflow, skill, record
+
+app = typer.Typer(
+    name="openkiln",
+    help="Open source agentic data workflow CLI. Built by OrbiSearch.",
+    no_args_is_help=True,
+    pretty_exceptions_show_locals=False,
+)
+
+# command groups
+app.add_typer(workflow.app, name="workflow")
+app.add_typer(skill.app,    name="skill")
+app.add_typer(record.app,   name="record")
+
+# single commands
+app.command("init")(init.run)
+app.command("status")(status.run)
+
+if __name__ == "__main__":
+    app()

@@ -4,7 +4,7 @@ import importlib
 
 import typer
 
-from openkiln.commands import init, status, workflow, skill, record
+from openkiln.commands import init, status, workflow, skill, record, update
 from openkiln import db
 
 app = typer.Typer(
@@ -22,6 +22,7 @@ app.add_typer(record.app,   name="record")
 # single commands
 app.command("init")(init.run)
 app.command("status")(status.run)
+app.command("update")(update.run)
 
 # dynamically mount installed skill CLIs
 # tracks which skills have been mounted to avoid duplicates

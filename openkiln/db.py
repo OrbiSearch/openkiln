@@ -139,11 +139,16 @@ def init_core() -> None:
         conn.executescript(sql)
 
 
-def init_skill(skill_name: str) -> None:
+def init_skill(skill_name: str) -> list[str]:
     """
     Creates a skill database and applies any unapplied schema migrations.
     Tracks applied migrations in a schema_migrations table per skill db.
     Safe to call multiple times — only unapplied migrations are run.
+
+    Handles legacy installations (pre-migration-tracking) by checking
+    if a migration's effects are already present before running it.
+    Returns list of newly applied migration filenames.
+
     Called by openkiln skill install and openkiln skill update.
     """
     schema_dir = SKILLS_DIR / skill_name / "schema"
@@ -181,16 +186,56 @@ def init_skill(skill_name: str) -> None:
             ).fetchall()
         }
 
+        # legacy install detection: schema_migrations exists but is empty
+        # and the db already has tables — migrations ran before tracking.
+        # mark all migrations as applied without re-running them.
+        if not applied:
+            existing_tables = {
+                row[0] for row in skill_conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table' "
+                    "AND name != 'schema_migrations'"
+                ).fetchall()
+            }
+            if existing_tables:
+                # db already has schema — mark all migrations as applied
+                for migration_file in migration_files:
+                    skill_conn.execute(
+                        "INSERT OR IGNORE INTO schema_migrations "
+                        "(filename) VALUES (?)",
+                        (migration_file.name,)
+                    )
+                skill_conn.commit()
+                return []  # nothing newly applied
+
         # apply only unapplied migrations in order
         newly_applied = []
         for migration_file in migration_files:
             filename = migration_file.name
             if filename in applied:
                 continue
+
             sql = migration_file.read_text()
-            skill_conn.executescript(sql)
+            try:
+                skill_conn.executescript(sql)
+            except sqlite3.OperationalError as e:
+                err = str(e).lower()
+                if "duplicate column name" in err:
+                    # column already exists — migration effectively applied
+                    # mark as applied and continue
+                    skill_conn.execute(
+                        "INSERT OR IGNORE INTO schema_migrations "
+                        "(filename) VALUES (?)",
+                        (filename,)
+                    )
+                    skill_conn.commit()
+                    continue
+                raise RuntimeError(
+                    f"Migration failed: {filename}\n{e}"
+                ) from e
+
             skill_conn.execute(
-                "INSERT INTO schema_migrations (filename) VALUES (?)",
+                "INSERT OR IGNORE INTO schema_migrations "
+                "(filename) VALUES (?)",
                 (filename,)
             )
             skill_conn.commit()

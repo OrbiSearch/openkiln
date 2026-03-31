@@ -146,3 +146,11 @@ cython_debug/
 # OS
 .DS_Store
 Thumbs.db
+
+# OpenKiln development
+.venv/
+*.egg-info/
+.pytest_cache/
+dist/
+build/
+.coverage

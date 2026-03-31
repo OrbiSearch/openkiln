@@ -11,7 +11,7 @@ CONTACT_COLUMNS = [
     "first_name", "last_name", "full_name", "email", "phone",
     "linkedin_url", "company_name", "job_title", "department",
     "seniority", "city", "country", "timezone", "segment",
-    "tags", "lead_score", "source",
+    "tags", "lead_score", "source", "last_contacted_at",
 ]
 
 COMPANY_COLUMNS = [

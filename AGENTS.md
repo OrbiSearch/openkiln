@@ -5,14 +5,29 @@ Open source agentic data workflow CLI. Built by OrbiSearch (orbisearch.com).
 ---
 
 ## Setup
+
+### From the repo (recommended)
 ```bash
-pip install openkiln
-openkiln init
-openkiln status
+bash install.sh
+source .venv/bin/activate
 ```
 
-If `openkiln status` returns a summary, setup is complete.
-If it returns an error, re-run `openkiln init`.
+Or paste the contents of install.sh directly into your session.
+This handles Python version checking, cloning, venv creation,
+pip install, and openkiln init automatically.
+
+### Verify
+```bash
+openkiln --help      # must show real commands — init, status, skill, record, workflow
+openkiln status      # must return a summary, not an error
+```
+
+If `openkiln --help` shows nothing or errors — the package is not
+installed. Run `pip install -e .` from the repo root first.
+
+> OpenKiln is fully implemented. All commands in `--help` are real
+> and runnable. Do not attempt to reimplement anything.
+> If a command errors, report it — do not rewrite the source.
 
 ---
 

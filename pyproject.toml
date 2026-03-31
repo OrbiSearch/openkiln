@@ -1,0 +1,6 @@
+# pyproject.toml
+#
+# Package configuration for openkiln.
+# Dependencies: typer, sqlalchemy, httpx, pyyaml, rich.
+# Entry point: openkiln.cli:app
+# Python >= 3.10 required.

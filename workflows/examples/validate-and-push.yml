@@ -1,0 +1,8 @@
+# validate-and-push.yml
+#
+# Example workflow: validate contacts and push to Smartlead.
+# Steps:
+#   1. Source: read contacts from local DB
+#   2. Transform: validate emails via OrbiSearch
+#   3. Transform: filter to valid emails only
+#   4. Sink: push to Smartlead campaign

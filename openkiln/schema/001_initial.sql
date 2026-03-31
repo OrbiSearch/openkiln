@@ -1,0 +1,5 @@
+-- 001_initial.sql
+--
+-- Initial database schema for OpenKiln.
+-- Tables: contacts, companies, workflow_runs, workflow_schedules.
+-- Applied automatically on first run via db.py.

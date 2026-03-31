@@ -261,6 +261,29 @@ def import_records(
                 raise typer.Exit(code=1)
             explicit_mappings[src.lower()] = dst
 
+    # build reverse mapping: schema_col_lower -> csv_col_name
+    # so we can look up the CSV column for the dedup key
+    reverse_mappings: dict[str, str] = {
+        dst.lower(): src for src, dst in (
+            (m.split("=", 1)[0].strip(), m.split("=", 1)[1].strip())
+            for m in (map_columns or [])
+            if "=" in m
+        )
+    }
+
+    # resolve the CSV column name for the dedup key
+    # e.g. if dedup_key is "domain" and --map "website=domain",
+    # we need to look up "website" in the CSV row, not "domain"
+    dedup_csv_col = dedup_key
+    if dedup_key and dedup_key.lower() in reverse_mappings:
+        dedup_csv_col = reverse_mappings[dedup_key.lower()]
+    elif dedup_key:
+        # find the original CSV column name (case-insensitive match)
+        for col in csv_columns:
+            if col.lower() == dedup_key.lower():
+                dedup_csv_col = col
+                break
+
     # identify column mapping
     unknown_columns: list[str] = []
     matched_columns: list[str] = []
@@ -287,7 +310,7 @@ def import_records(
             # get existing dedup values from skill db
             existing = _get_existing_dedup_values(skill, type_, dedup_key)
             for row in all_rows:
-                val = row.get(dedup_key, "").strip().lower()
+                val = row.get(dedup_csv_col, "").strip().lower()
                 if val and val in existing:
                     skipped_dupes += 1
                 else:
@@ -327,7 +350,7 @@ def import_records(
             for row in batch:
                 # dedup check
                 if dedup_key:
-                    val = row.get(dedup_key, "").strip().lower()
+                    val = row.get(dedup_csv_col, "").strip().lower()
                     if val and val in existing:
                         if not upsert:
                             skipped_dupes += 1

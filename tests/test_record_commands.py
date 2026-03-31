@@ -399,3 +399,36 @@ def test_import_without_upsert_skips_duplicates(openkiln_home, tmp_path):
     )
     assert result.exit_code == 0
     assert "skip" in result.output.lower() or "dupe" in result.output.lower()
+
+
+def test_import_map_dedup_uses_mapped_column(openkiln_home, tmp_path):
+    """--map with dedup key uses the mapped CSV column for dedup check."""
+    _setup(runner, openkiln_home)
+
+    # first import: website column mapped to domain
+    f = _make_csv(tmp_path, [
+        {"website": "acme.com", "name": "Acme Corp"},
+    ])
+    runner.invoke(
+        app,
+        ["record", "import", str(f), "--type", "company",
+         "--skill", "crm", "--map", "website=domain",
+         "--map", "name=name", "--apply"],
+    )
+
+    # second import: same website — should be skipped as dupe
+    result = runner.invoke(
+        app,
+        ["record", "import", str(f), "--type", "company",
+         "--skill", "crm", "--map", "website=domain",
+         "--map", "name=name", "--apply"],
+    )
+    assert result.exit_code == 0
+
+    import sqlite3
+    conn = sqlite3.connect(openkiln_home / "skills" / "crm.db")
+    count = conn.execute(
+        "SELECT COUNT(*) FROM companies WHERE domain = 'acme.com'"
+    ).fetchone()[0]
+    conn.close()
+    assert count == 1  # not duplicated

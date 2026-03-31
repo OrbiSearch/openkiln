@@ -34,6 +34,12 @@ link_app = typer.Typer(
 )
 app.add_typer(link_app, name="link")
 
+list_mgmt_app = typer.Typer(
+    help="List management — create, add, remove, delete.",
+    no_args_is_help=True,
+)
+app.add_typer(list_mgmt_app, name="lists")
+
 console = Console()
 
 
@@ -46,6 +52,21 @@ def list_contacts(
     ),
     tag: Optional[str] = typer.Option(
         None, "--tag", help="Filter by tag."
+    ),
+    lifecycle: Optional[str] = typer.Option(
+        None, "--lifecycle",
+        help=(
+            "Filter by lifecycle stage: "
+            "cold, lead, mql, sql, opportunity, customer, evangelist"
+        ),
+    ),
+    status: Optional[str] = typer.Option(
+        None, "--status",
+        help=(
+            "Filter by lead status: "
+            "new, contacted, replied, interested, "
+            "not_interested, unqualified, bad_timing"
+        ),
     ),
     not_contacted_since: Optional[int] = typer.Option(
         None, "--not-contacted-since",
@@ -68,6 +89,13 @@ def list_contacts(
         tag=tag,
         not_contacted_since=not_contacted_since,
     )
+    # also filter by lifecycle/status if provided
+    if lifecycle or status:
+        rows = queries.list_contacts_by_lifecycle(
+            lifecycle_stage=lifecycle,
+            lead_status=status,
+            limit=limit,
+        )
 
     if output_json:
         typer.echo(json.dumps({
@@ -85,6 +113,10 @@ def list_contacts(
         filters.append(f"tag={tag}")
     if not_contacted_since:
         filters.append(f"not contacted in {not_contacted_since}d")
+    if lifecycle:
+        filters.append(f"lifecycle={lifecycle}")
+    if status:
+        filters.append(f"status={status}")
 
     filter_str = "  Filters: " + ", ".join(filters) if filters else ""
 
@@ -566,3 +598,173 @@ def link_contact(
     else:
         rprint("[red]✗ Failed to link contact to company.[/red]")
         raise typer.Exit(code=1)
+
+
+# ── list management ───────────────────────────────────────────
+
+@list_mgmt_app.command("create")
+def lists_create(
+    name: str = typer.Argument(..., help="List name."),
+    description: Optional[str] = typer.Option(
+        None, "--description", help="Optional description."
+    ),
+    output_json: bool = typer.Option(
+        False, "--json", help="Output as JSON."
+    ),
+) -> None:
+    """Create a new named list."""
+    try:
+        list_id = queries.create_list(name, description)
+    except ValueError as e:
+        rprint(f"[red]✗ {e}[/red]")
+        raise typer.Exit(code=1)
+
+    if output_json:
+        typer.echo(json.dumps({"id": list_id, "name": name}))
+        return
+
+    console.print(f"\n[green]✓[/green] List '{name}' created (id={list_id})\n")
+
+
+@list_mgmt_app.command("show")
+def lists_show(
+    output_json: bool = typer.Option(
+        False, "--json", help="Output as JSON."
+    ),
+) -> None:
+    """Show all lists with member counts."""
+    rows = queries.get_lists()
+
+    if output_json:
+        typer.echo(json.dumps([dict(r) for r in rows]))
+        return
+
+    if not rows:
+        console.print("\n[dim]No lists yet.[/dim]\n")
+        console.print(
+            "Create one: [bold]openkiln crm lists create <name>[/bold]\n"
+        )
+        return
+
+    console.print(f"\n[bold]Lists[/bold] — {len(rows)} total\n")
+    table = Table(show_header=True, header_style="bold")
+    table.add_column("ID",      width=6)
+    table.add_column("Name",    width=25)
+    table.add_column("Members", width=10)
+    table.add_column("Description", width=30)
+
+    for row in rows:
+        table.add_row(
+            str(row["id"]),
+            row["name"],
+            str(row["member_count"]),
+            row["description"] or "—",
+        )
+
+    console.print(table)
+    console.print()
+
+
+@list_mgmt_app.command("add")
+def lists_add(
+    list_name: str = typer.Argument(..., help="List name."),
+    ids: str = typer.Option(
+        ..., "--ids",
+        help="Comma-separated record IDs to add."
+    ),
+    output_json: bool = typer.Option(
+        False, "--json", help="Output as JSON."
+    ),
+) -> None:
+    """Add records to a list by record ID."""
+    try:
+        record_ids = [int(i.strip()) for i in ids.split(",")]
+    except ValueError:
+        rprint("[red]✗ --ids must be comma-separated integers[/red]")
+        raise typer.Exit(code=1)
+
+    try:
+        result = queries.add_to_list(list_name, record_ids)
+    except ValueError as e:
+        rprint(f"[red]✗ {e}[/red]")
+        raise typer.Exit(code=1)
+
+    if output_json:
+        typer.echo(json.dumps(result))
+        return
+
+    console.print(
+        f"\n[green]✓[/green] Added {result['added']} to '{list_name}'"
+    )
+    if result["skipped"]:
+        console.print(f"  [dim]{result['skipped']} already in list[/dim]")
+    console.print()
+
+
+@list_mgmt_app.command("members")
+def lists_members(
+    list_name: str = typer.Argument(..., help="List name."),
+    limit: int = typer.Option(50, "--limit"),
+    output_json: bool = typer.Option(
+        False, "--json", help="Output as JSON."
+    ),
+) -> None:
+    """Show members of a list."""
+    try:
+        rows = queries.get_list_members(list_name, limit=limit)
+    except ValueError as e:
+        rprint(f"[red]✗ {e}[/red]")
+        raise typer.Exit(code=1)
+
+    if output_json:
+        typer.echo(json.dumps({
+            "list": list_name,
+            "members": [dict(r) for r in rows],
+        }))
+        return
+
+    console.print(f"\n[bold]List: {list_name}[/bold] — {len(rows)} members\n")
+
+    if not rows:
+        console.print("[dim]No members yet.[/dim]\n")
+        return
+
+    table = Table(show_header=True, header_style="bold")
+    table.add_column("ID",    width=6)
+    table.add_column("Name",  width=22)
+    table.add_column("Email", width=28)
+    table.add_column("Lifecycle", width=14)
+    table.add_column("Status",    width=14)
+
+    for row in rows:
+        table.add_row(
+            str(row["record_id"]),
+            row["full_name"] or "—",
+            row["email"] or "—",
+            row["lifecycle_stage"] or "—",
+            row["lead_status"] or "—",
+        )
+
+    console.print(table)
+    console.print()
+
+
+@list_mgmt_app.command("delete")
+def lists_delete(
+    list_name: str = typer.Argument(..., help="List name to delete."),
+    output_json: bool = typer.Option(
+        False, "--json", help="Output as JSON."
+    ),
+) -> None:
+    """Delete a list and all its memberships."""
+    deleted = queries.delete_list(list_name)
+
+    if not deleted:
+        rprint(f"[red]✗ List '{list_name}' not found.[/red]")
+        raise typer.Exit(code=1)
+
+    if output_json:
+        typer.echo(json.dumps({"deleted": list_name}))
+        return
+
+    console.print(f"\n[green]✓[/green] List '{list_name}' deleted.\n")

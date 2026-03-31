@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import sqlite3
+
+import pytest
 from typer.testing import CliRunner
 from openkiln.cli import app
 from openkiln.skills.crm import queries
@@ -519,3 +521,141 @@ def test_crm_link_contact_manual_command(openkiln_home):
     )
     assert result.exit_code == 0
     assert "linked" in result.output.lower()
+
+
+# ── lifecycle and list tests ──────────────────────────────────
+
+def test_crm_schema_has_lifecycle_columns(openkiln_home):
+    """Migration 003 adds lifecycle_stage and lead_status to contacts."""
+    _setup(runner, openkiln_home)
+    crm_db = openkiln_home / "skills" / "crm.db"
+    conn = sqlite3.connect(crm_db)
+    cols = {
+        r[1] for r in conn.execute(
+            "PRAGMA table_info(contacts)"
+        ).fetchall()
+    }
+    conn.close()
+    assert "lifecycle_stage" in cols
+    assert "lead_status" in cols
+
+
+def test_crm_schema_has_lists_table(openkiln_home):
+    """Migration 003 creates lists and list_members tables."""
+    _setup(runner, openkiln_home)
+    crm_db = openkiln_home / "skills" / "crm.db"
+    conn = sqlite3.connect(crm_db)
+    tables = {
+        r[0] for r in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'"
+        ).fetchall()
+    }
+    conn.close()
+    assert "lists" in tables
+    assert "list_members" in tables
+
+
+def test_create_and_get_list(openkiln_home):
+    """create_list and get_lists work correctly."""
+    _setup(runner, openkiln_home)
+    list_id = queries.create_list("my-list", "A test list")
+    assert list_id is not None
+
+    lists = queries.get_lists()
+    assert len(lists) == 1
+    assert lists[0]["name"] == "my-list"
+
+
+def test_create_duplicate_list_fails(openkiln_home):
+    """create_list raises ValueError for duplicate names."""
+    _setup(runner, openkiln_home)
+    queries.create_list("my-list")
+    with pytest.raises(ValueError, match="already exists"):
+        queries.create_list("my-list")
+
+
+def test_add_and_remove_list_members(openkiln_home):
+    """add_to_list and remove_from_list work correctly."""
+    _setup(runner, openkiln_home)
+    rid1 = _insert_contact(openkiln_home, email="a@a.com")
+    rid2 = _insert_contact(openkiln_home, email="b@b.com")
+
+    queries.create_list("test-list")
+    result = queries.add_to_list("test-list", [rid1, rid2])
+    assert result["added"] == 2
+    assert result["skipped"] == 0
+
+    # add again — should skip
+    result2 = queries.add_to_list("test-list", [rid1])
+    assert result2["added"] == 0
+    assert result2["skipped"] == 1
+
+    # remove
+    removed = queries.remove_from_list("test-list", [rid1])
+    assert removed == 1
+
+    members = queries.get_list_members("test-list")
+    assert len(members) == 1
+    assert members[0]["record_id"] == rid2
+
+
+def test_delete_list(openkiln_home):
+    """delete_list removes list and memberships."""
+    _setup(runner, openkiln_home)
+    rid = _insert_contact(openkiln_home, email="a@a.com")
+    queries.create_list("temp-list")
+    queries.add_to_list("temp-list", [rid])
+    deleted = queries.delete_list("temp-list")
+    assert deleted is True
+    assert len(queries.get_lists()) == 0
+
+
+def test_crm_lists_create_command(openkiln_home):
+    """openkiln crm lists create works."""
+    _setup(runner, openkiln_home)
+    result = runner.invoke(
+        app, ["crm", "lists", "create", "my-list"]
+    )
+    assert result.exit_code == 0
+    assert "my-list" in result.output
+
+
+def test_crm_lists_show_command(openkiln_home):
+    """openkiln crm lists show lists all lists."""
+    _setup(runner, openkiln_home)
+    queries.create_list("list-a")
+    queries.create_list("list-b")
+    result = runner.invoke(app, ["crm", "lists", "show"])
+    assert result.exit_code == 0
+    assert "list-a" in result.output
+    assert "list-b" in result.output
+
+
+def test_crm_lists_add_and_members(openkiln_home):
+    """openkiln crm lists add and members work together."""
+    _setup(runner, openkiln_home)
+    rid = _insert_contact(openkiln_home, email="a@a.com")
+    queries.create_list("test-list")
+
+    result = runner.invoke(
+        app,
+        ["crm", "lists", "add", "test-list", "--ids", str(rid)]
+    )
+    assert result.exit_code == 0
+
+    result2 = runner.invoke(
+        app, ["crm", "lists", "members", "test-list"]
+    )
+    assert result2.exit_code == 0
+    assert "a@a.com" in result2.output
+
+
+def test_crm_lists_delete_command(openkiln_home):
+    """openkiln crm lists delete removes the list."""
+    _setup(runner, openkiln_home)
+    queries.create_list("to-delete")
+    result = runner.invoke(
+        app, ["crm", "lists", "delete", "to-delete"]
+    )
+    assert result.exit_code == 0
+    assert len(queries.get_lists()) == 0

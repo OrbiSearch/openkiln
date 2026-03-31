@@ -107,22 +107,57 @@ openkiln crm list companies
 openkiln crm list companies --segment "saas"
 ```
 
-## Tagging and segmenting
+## Organising contacts
+
+### Lifecycle stage and lead status
 ```bash
-# set segment on all contacts matching a filter
-openkiln crm tag contacts --segment "cold-email-agencies" --dry-run
-openkiln crm tag contacts --segment "cold-email-agencies" --apply
+# set lifecycle stage on contacts
+openkiln crm tag contacts --set-segment "cold" --apply
+# (use --set-segment for backwards compat until crm set command added)
 
-# add a tag to specific records
-openkiln crm tag contacts --ids 1,2,3 --add-tag "priority" --apply
+# filter by lifecycle stage
+openkiln crm list contacts --lifecycle cold
+openkiln crm list contacts --lifecycle sql --status contacted
 
-# update a single contact by email
-openkiln crm tag contacts --email "john@acme.com" \
-  --set-segment "cold-email-agencies" --apply
-
-# remove a tag
-openkiln crm tag contacts --tag "priority" --remove-tag "priority" --apply
+# filter by lead status
+openkiln crm list contacts --status new
 ```
+
+Valid lifecycle stages: cold, lead, mql, sql, opportunity, customer, evangelist
+Valid lead statuses: new, contacted, replied, interested, not_interested, unqualified, bad_timing
+Valid ICP tiers (companies): tier_1, tier_2, tier_3
+
+### Tags
+
+Free-form labels for flexible categorisation.
+```bash
+openkiln crm tag contacts --add-tag "priority" --apply
+openkiln crm tag contacts --tag "priority" --add-tag "hot" --apply
+openkiln crm tag contacts --remove-tag "cold" --apply
+```
+
+### Lists
+
+Named collections for campaign targeting.
+A contact can be in multiple lists.
+```bash
+# create a list
+openkiln crm lists create "q2-cold-email-outreach"
+
+# show all lists
+openkiln crm lists show
+
+# add contacts to a list
+openkiln crm lists add "q2-cold-email-outreach" --ids 1,2,3,4,5
+
+# see who's in a list
+openkiln crm lists members "q2-cold-email-outreach"
+
+# delete a list (does not delete contacts)
+openkiln crm lists delete "q2-cold-email-outreach"
+```
+
+Lists are static — members are managed manually or by workflows.
 
 ## Stats
 ```bash

@@ -448,3 +448,192 @@ def link_contact_to_company(
         return True
     finally:
         conn.close()
+
+
+# ── lists ─────────────────────────────────────────────────────
+
+def create_list(name: str, description: str | None = None) -> int:
+    """
+    Creates a new named list. Returns the list id.
+    Raises ValueError if a list with that name already exists.
+    """
+    conn = _crm_connection()
+    try:
+        existing = conn.execute(
+            "SELECT id FROM lists WHERE name = ?", (name,)
+        ).fetchone()
+        if existing:
+            raise ValueError(f"List '{name}' already exists.")
+        cursor = conn.execute(
+            "INSERT INTO lists (name, description) VALUES (?, ?)",
+            (name, description)
+        )
+        conn.commit()
+        return cursor.lastrowid
+    finally:
+        conn.close()
+
+
+def get_lists() -> list:
+    """Returns all lists with member counts."""
+    conn = _crm_connection()
+    try:
+        return conn.execute("""
+            SELECT l.id, l.name, l.description, l.type,
+                   COUNT(lm.record_id) as member_count,
+                   l.created_at
+            FROM lists l
+            LEFT JOIN list_members lm ON lm.list_id = l.id
+            GROUP BY l.id
+            ORDER BY l.name
+        """).fetchall()
+    finally:
+        conn.close()
+
+
+def add_to_list(
+    list_name: str,
+    record_ids: list[int],
+) -> dict:
+    """
+    Adds records to a named list.
+    Skips records already in the list.
+    Returns dict with added and skipped counts.
+    """
+    conn = _crm_connection()
+    try:
+        lst = conn.execute(
+            "SELECT id FROM lists WHERE name = ?", (list_name,)
+        ).fetchone()
+        if not lst:
+            raise ValueError(f"List '{list_name}' does not exist.")
+
+        list_id = lst[0]
+        existing = {
+            row[0] for row in conn.execute(
+                "SELECT record_id FROM list_members WHERE list_id = ?",
+                (list_id,)
+            ).fetchall()
+        }
+
+        to_add = [rid for rid in record_ids if rid not in existing]
+        skipped = len(record_ids) - len(to_add)
+
+        if to_add:
+            conn.executemany(
+                "INSERT INTO list_members (list_id, record_id) "
+                "VALUES (?, ?)",
+                [(list_id, rid) for rid in to_add]
+            )
+            conn.commit()
+
+        return {"added": len(to_add), "skipped": skipped}
+    finally:
+        conn.close()
+
+
+def remove_from_list(list_name: str, record_ids: list[int]) -> int:
+    """
+    Removes records from a named list.
+    Returns number of records removed.
+    """
+    conn = _crm_connection()
+    try:
+        lst = conn.execute(
+            "SELECT id FROM lists WHERE name = ?", (list_name,)
+        ).fetchone()
+        if not lst:
+            raise ValueError(f"List '{list_name}' does not exist.")
+
+        list_id = lst[0]
+        placeholders = ",".join(["?"] * len(record_ids))
+        cursor = conn.execute(
+            f"DELETE FROM list_members "
+            f"WHERE list_id = ? AND record_id IN ({placeholders})",
+            [list_id] + record_ids
+        )
+        conn.commit()
+        return cursor.rowcount
+    finally:
+        conn.close()
+
+
+def get_list_members(
+    list_name: str,
+    limit: int = 50,
+    offset: int = 0,
+) -> list:
+    """Returns contacts in a named list."""
+    conn = _crm_connection()
+    try:
+        lst = conn.execute(
+            "SELECT id FROM lists WHERE name = ?", (list_name,)
+        ).fetchone()
+        if not lst:
+            raise ValueError(f"List '{list_name}' does not exist.")
+
+        list_id = lst[0]
+        return conn.execute("""
+            SELECT c.* FROM contacts c
+            JOIN list_members lm ON lm.record_id = c.record_id
+            WHERE lm.list_id = ?
+            ORDER BY lm.added_at DESC
+            LIMIT ? OFFSET ?
+        """, (list_id, limit, offset)).fetchall()
+    finally:
+        conn.close()
+
+
+def delete_list(list_name: str) -> bool:
+    """
+    Deletes a list and all its memberships.
+    Returns True if deleted, False if not found.
+    """
+    conn = _crm_connection()
+    try:
+        lst = conn.execute(
+            "SELECT id FROM lists WHERE name = ?", (list_name,)
+        ).fetchone()
+        if not lst:
+            return False
+
+        list_id = lst[0]
+        conn.execute(
+            "DELETE FROM list_members WHERE list_id = ?", (list_id,)
+        )
+        conn.execute("DELETE FROM lists WHERE id = ?", (list_id,))
+        conn.commit()
+        return True
+    finally:
+        conn.close()
+
+
+def list_contacts_by_lifecycle(
+    lifecycle_stage: str | None = None,
+    lead_status: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+) -> list:
+    """Returns contacts filtered by lifecycle_stage and/or lead_status."""
+    where: list[str] = []
+    params: list = []
+
+    if lifecycle_stage:
+        where.append("lifecycle_stage = ?")
+        params.append(lifecycle_stage)
+
+    if lead_status:
+        where.append("lead_status = ?")
+        params.append(lead_status)
+
+    sql = "SELECT * FROM contacts"
+    if where:
+        sql += " WHERE " + " AND ".join(where)
+    sql += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
+    params.extend([limit, offset])
+
+    conn = _crm_connection()
+    try:
+        return conn.execute(sql, params).fetchall()
+    finally:
+        conn.close()

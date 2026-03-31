@@ -82,3 +82,38 @@ Destructive commands must require `--apply`.
 **Any change to a command, flag, construct, or provider must update
 the relevant module's docstring. AGENTS.md is not the source of truth
 for implementation detail — the code is.**
+
+---
+
+## Building custom workflows
+
+Before writing a workflow file, always run discovery commands first:
+```bash
+# see what skills are installed and what hub skills are available
+openkiln skill list
+
+# see what a skill provides — fields, inputs, outputs, example usage
+openkiln skill info <skill-name>
+
+# get a starter workflow template
+openkiln workflow template > my-workflow.yml
+```
+
+After writing or editing a workflow file, always validate before running:
+```bash
+# validates syntax, dependencies, and field compatibility
+openkiln workflow validate my-workflow.yml
+
+# preview without writing data
+openkiln workflow run my-workflow.yml --dry-run
+
+# run for real
+openkiln workflow run my-workflow.yml --apply
+```
+
+If a required skill is missing:
+```bash
+openkiln skill install <skill-name>
+```
+
+Then re-run validate and proceed.

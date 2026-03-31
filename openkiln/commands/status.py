@@ -1,5 +1,13 @@
-# commands/status.py
+# status.py
 #
-# Status command.
-# Shows current OpenKiln state: config, DB stats,
-# scheduled workflows, provider connectivity.
+# openkiln status
+#
+# Prints a summary of the current OpenKiln installation:
+#   - core database connection status
+#   - record counts by type
+#   - installed skills and versions
+#   - last workflow run (name, status, records in/out, time)
+#
+# Run at the start of every agent session to verify setup.
+# If database connection fails, instructs user to run openkiln init.
+# Supports --json flag for agent consumption.

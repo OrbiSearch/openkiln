@@ -1,4 +1,1 @@
-# openkiln/__init__.py
-#
-# Package root for OpenKiln.
-# Exports version string and top-level API.
+__version__ = "0.1.0"

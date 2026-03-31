@@ -1,8 +1,44 @@
 # validate-and-push.yml
 #
-# Example workflow: validate contacts and push to Smartlead.
-# Steps:
-#   1. Source: read contacts from local DB
-#   2. Transform: validate emails via OrbiSearch
-#   3. Transform: filter to valid emails only
-#   4. Sink: push to Smartlead campaign
+# Example workflow: import contacts, validate emails via OrbiSearch,
+# push valid contacts to a Smartlead campaign.
+#
+# Required skills:
+#   openkiln skill install crm
+#   openkiln skill install orbisearch
+#   openkiln skill install smartlead
+#
+# Usage:
+#   openkiln workflow validate validate-and-push.yml
+#   openkiln workflow run validate-and-push.yml --dry-run
+#   openkiln workflow run validate-and-push.yml --apply
+
+name: validate-and-push
+version: 1.0.0
+author: orbisearch
+
+requires:
+  - crm
+  - orbisearch
+  - smartlead
+
+source:
+  skill: crm
+  type: contacts
+  filter:
+    segment: ""          # set your segment e.g. gtm-agencies
+    record_status: active
+
+transforms:
+  - orbisearch.validate
+
+filter:
+  status: safe           # only pass safe emails downstream
+
+sinks:
+  - skill: crm
+    action: update       # write validation results back to crm.db
+
+  - skill: smartlead
+    action: push
+    campaign_id: ""      # set your Smartlead campaign ID

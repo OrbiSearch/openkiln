@@ -144,6 +144,37 @@ openkiln crm touch log --record-id 1 --channel email \
   --campaign-id "q2-outreach"
 ```
 
+## Resetting CRM data
+
+Use during setup to clear and reimport with corrected column mappings.
+Core records (in core.db) are not affected.
+```bash
+# preview what would be deleted
+openkiln crm reset contacts --dry-run
+openkiln crm reset companies --dry-run
+
+# delete all contacts
+openkiln crm reset contacts --apply
+
+# then reimport with correct column mappings
+openkiln record import contacts.csv --type contact --skill crm \
+  --map "Title=job_title" --apply
+```
+
+## Updating existing records
+
+Use --upsert to update existing records instead of skipping duplicates:
+```bash
+# reimport with new column mappings — updates existing contacts
+openkiln record import contacts.csv --type contact --skill crm \
+  --map "Title=job_title" \
+  --map "linkedin_profile=linkedin_url" \
+  --upsert --apply
+```
+
+Without --upsert, records matching the dedup key (email for contacts,
+domain for companies) are skipped. With --upsert they are updated.
+
 ## Example workflow usage
 ```yaml
 source:

@@ -167,6 +167,14 @@ def import_records(
             "Example: --map 'Title=job_title' --map 'linkedin_profile=linkedin_url'"
         ),
     ),
+    upsert: bool = typer.Option(
+        False, "--upsert",
+        help=(
+            "Update existing records on dedup key match instead of skipping. "
+            "Without --upsert, duplicate records are skipped. "
+            "With --upsert, existing records are updated with new field values."
+        ),
+    ),
     dry_run: bool = typer.Option(
         True, "--dry-run/--apply",
         help="Preview import without writing data (default)."
@@ -298,6 +306,7 @@ def import_records(
             unknown_columns=unknown_columns,
             explicit_mappings=explicit_mappings,
             output_json=output_json,
+            upsert=upsert,
         )
         return
 
@@ -320,7 +329,38 @@ def import_records(
                 if dedup_key:
                     val = row.get(dedup_key, "").strip().lower()
                     if val and val in existing:
-                        skipped_dupes += 1
+                        if not upsert:
+                            skipped_dupes += 1
+                            continue
+                        # upsert — update existing record
+                        if skill and skill_columns:
+                            skill_col_lower = {
+                                c.lower(): c for c in skill_columns
+                            }
+                            table = _skill_table_name(skill, type_)
+                            fields = {}
+                            for csv_col in matched_columns:
+                                schema_col = (
+                                    explicit_mappings.get(csv_col.lower())
+                                    or skill_col_lower.get(csv_col.lower())
+                                )
+                                if schema_col and schema_col != dedup_key:
+                                    field_val = (
+                                        row.get(csv_col, "").strip() or None
+                                    )
+                                    fields[schema_col] = field_val
+
+                            if fields:
+                                set_clause = ", ".join(
+                                    f"{k} = ?" for k in fields.keys()
+                                )
+                                conn.execute(
+                                    f"UPDATE {skill}.{table} "
+                                    f"SET {set_clause} "
+                                    f"WHERE {dedup_key} = ?",
+                                    list(fields.values()) + [val],
+                                )
+                        imported += 1
                         continue
                     if val:
                         existing.add(val)
@@ -347,8 +387,10 @@ def import_records(
                             or skill_col_lower.get(csv_col.lower())
                         )
                         if schema_col:
-                            val = row.get(csv_col, "").strip() or None
-                            fields[schema_col] = val
+                            field_val = (
+                                row.get(csv_col, "").strip() or None
+                            )
+                            fields[schema_col] = field_val
 
                     cols = ", ".join(fields.keys())
                     placeholders = ", ".join(["?"] * len(fields))
@@ -371,6 +413,7 @@ def import_records(
         unknown_columns=unknown_columns,
         explicit_mappings=explicit_mappings,
         output_json=output_json,
+        upsert=upsert,
     )
 
 
@@ -470,6 +513,7 @@ def _print_import_result(
     unknown_columns: list[str],
     explicit_mappings: dict[str, str],
     output_json: bool,
+    upsert: bool = False,
 ) -> None:
     """Prints import results in human or JSON format."""
     if output_json:
@@ -492,9 +536,12 @@ def _print_import_result(
     console.print(f"  [green]Imported:[/green]        {imported:>8,}")
 
     if skipped_dupes:
-        console.print(
-            f"  [yellow]Skipped (dupes):[/yellow] {skipped_dupes:>8,}"
+        label = (
+            "  [yellow]Skipped (dupes):[/yellow]"
+            if not upsert
+            else "  [green]Updated (upsert):[/green]"
         )
+        console.print(f"{label} {skipped_dupes:>8,}")
 
     if explicit_mappings:
         console.print(

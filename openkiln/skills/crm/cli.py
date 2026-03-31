@@ -386,3 +386,88 @@ def touch_log(
         f"(id={touch_id}, record={record_id}, "
         f"channel={channel})\n"
     )
+
+
+# ── reset ─────────────────────────────────────────────────────
+
+@app.command("reset")
+def reset(
+    entity: str = typer.Argument(
+        ..., help="Entity type to reset: contacts or companies."
+    ),
+    dry_run: bool = typer.Option(
+        True, "--dry-run/--apply",
+        help="Preview without deleting (default)."
+    ),
+    output_json: bool = typer.Option(
+        False, "--json", help="Output as JSON."
+    ),
+) -> None:
+    """
+    Delete all contacts or companies from the CRM skill database.
+
+    Does not affect core.db records table.
+    Use during setup to reimport with corrected column mappings.
+    Always runs as --dry-run by default. Pass --apply to delete.
+    """
+    if entity not in ("contacts", "companies"):
+        rprint(
+            f"[red]✗ Unknown entity '{entity}'. "
+            f"Use: contacts or companies[/red]"
+        )
+        raise typer.Exit(code=1)
+
+    count = queries.count_contacts() if entity == "contacts" else 0
+
+    if entity == "companies":
+        from openkiln.skills.crm import queries as q
+        import sqlite3
+        from openkiln import config
+        db_path = config.get().skill_db_path("crm")
+        conn = sqlite3.connect(db_path)
+        count = conn.execute(
+            "SELECT COUNT(*) FROM companies"
+        ).fetchone()[0]
+        conn.close()
+
+    if output_json:
+        if dry_run:
+            typer.echo(json.dumps({
+                "dry_run": True,
+                "entity": entity,
+                "would_delete": count,
+            }))
+            return
+
+    if dry_run:
+        console.print(
+            f"\n[yellow]DRY RUN[/yellow] — "
+            f"would delete {count:,} {entity}\n"
+            f"Run with [bold]--apply[/bold] to delete.\n"
+        )
+        return
+
+    # apply
+    import sqlite3
+    from openkiln import config
+    db_path = config.get().skill_db_path("crm")
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute(f"DELETE FROM {entity}")
+        conn.commit()
+    finally:
+        conn.close()
+
+    if output_json:
+        typer.echo(json.dumps({
+            "dry_run": False,
+            "entity": entity,
+            "deleted": count,
+        }))
+        return
+
+    console.print(
+        f"\n[green]✓[/green] Deleted {count:,} {entity} "
+        f"from CRM database.\n"
+        f"[dim]Core records table is unchanged.[/dim]\n"
+    )

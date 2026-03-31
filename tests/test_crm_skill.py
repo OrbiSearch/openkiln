@@ -278,3 +278,39 @@ def test_tag_contacts_missing_action_gives_clear_error(openkiln_home):
     assert result.exit_code == 1
     assert "--set-segment" in result.output
     assert "filter" in result.output.lower()
+
+
+def test_crm_reset_dry_run(openkiln_home):
+    """openkiln crm reset contacts --dry-run does not delete."""
+    _setup(runner, openkiln_home)
+    _insert_contact(openkiln_home, email="a@a.com")
+    result = runner.invoke(
+        app, ["crm", "reset", "contacts", "--dry-run"]
+    )
+    assert result.exit_code == 0
+    assert "dry run" in result.output.lower()
+    rows = queries.list_contacts()
+    assert len(rows) == 1  # not deleted
+
+
+def test_crm_reset_apply_deletes_contacts(openkiln_home):
+    """openkiln crm reset contacts --apply deletes all contacts."""
+    _setup(runner, openkiln_home)
+    _insert_contact(openkiln_home, email="a@a.com")
+    _insert_contact(openkiln_home, email="b@b.com")
+    result = runner.invoke(
+        app, ["crm", "reset", "contacts", "--apply"]
+    )
+    assert result.exit_code == 0
+    rows = queries.list_contacts()
+    assert len(rows) == 0
+
+
+def test_crm_reset_unknown_entity_fails(openkiln_home):
+    """openkiln crm reset with unknown entity fails clearly."""
+    _setup(runner, openkiln_home)
+    result = runner.invoke(
+        app, ["crm", "reset", "invoices", "--apply"]
+    )
+    assert result.exit_code == 1
+    assert "Unknown entity" in result.output

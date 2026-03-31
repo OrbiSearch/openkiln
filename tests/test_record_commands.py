@@ -318,3 +318,84 @@ def test_import_dry_run_suggests_map_for_skipped_columns(
     )
     assert result.exit_code == 0
     assert "--map" in result.output
+
+
+def test_import_upsert_updates_existing_records(openkiln_home, tmp_path):
+    """--upsert updates existing records instead of skipping."""
+    _setup(runner, openkiln_home)
+
+    # initial import
+    f = _make_csv(tmp_path, [
+        {"email": "john@acme.com", "first_name": "John"},
+    ])
+    runner.invoke(
+        app,
+        ["record", "import", str(f), "--type", "contact",
+         "--skill", "crm", "--apply"],
+    )
+
+    # reimport with new data using upsert
+    f2 = _make_csv(tmp_path, [
+        {"email": "john@acme.com", "first_name": "Jonathan",
+         "job_title": "CEO"},
+    ])
+    tmp_path2 = tmp_path / "v2"
+    tmp_path2.mkdir(exist_ok=True)
+    f2 = tmp_path2 / "contacts.csv"
+    import csv as csv_mod
+    with open(f2, "w", newline="") as fh:
+        writer = csv_mod.DictWriter(
+            fh,
+            fieldnames=["email", "first_name", "job_title"]
+        )
+        writer.writeheader()
+        writer.writerow({
+            "email": "john@acme.com",
+            "first_name": "Jonathan",
+            "job_title": "CEO",
+        })
+
+    result = runner.invoke(
+        app,
+        ["record", "import", str(f2), "--type", "contact",
+         "--skill", "crm", "--upsert", "--apply"],
+    )
+    assert result.exit_code == 0
+
+    import sqlite3
+    conn = sqlite3.connect(openkiln_home / "skills" / "crm.db")
+    row = conn.execute(
+        "SELECT first_name, job_title FROM contacts "
+        "WHERE email = 'john@acme.com'"
+    ).fetchone()
+    conn.close()
+
+    assert row[0] == "Jonathan"
+    assert row[1] == "CEO"
+
+    # only one record should exist
+    with db.connection() as conn:
+        count = conn.execute(
+            "SELECT COUNT(*) FROM records WHERE type = 'contact'"
+        ).fetchone()[0]
+    assert count == 1
+
+
+def test_import_without_upsert_skips_duplicates(openkiln_home, tmp_path):
+    """Without --upsert duplicates are still skipped."""
+    _setup(runner, openkiln_home)
+    f = _make_csv(tmp_path, [
+        {"email": "john@acme.com", "first_name": "John"},
+    ])
+    runner.invoke(
+        app,
+        ["record", "import", str(f), "--type", "contact",
+         "--skill", "crm", "--apply"],
+    )
+    result = runner.invoke(
+        app,
+        ["record", "import", str(f), "--type", "contact",
+         "--skill", "crm", "--apply"],
+    )
+    assert result.exit_code == 0
+    assert "skip" in result.output.lower() or "dupe" in result.output.lower()

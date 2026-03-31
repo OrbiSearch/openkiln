@@ -266,3 +266,15 @@ def test_crm_list_contacts_json(openkiln_home):
     data = json.loads(result.output)
     assert "contacts" in data
     assert data["total"] == 1
+
+
+def test_tag_contacts_missing_action_gives_clear_error(openkiln_home):
+    """tag contacts with no action gives clear error explaining --segment vs --set-segment."""
+    _setup(runner, openkiln_home)
+    result = runner.invoke(
+        app,
+        ["crm", "tag", "contacts", "--segment", "something"]
+    )
+    assert result.exit_code == 1
+    assert "--set-segment" in result.output
+    assert "filter" in result.output.lower()

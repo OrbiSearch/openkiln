@@ -221,8 +221,19 @@ def tag(
 
     if not any([set_segment, add_tag, remove_tag]):
         rprint(
-            "[red]✗ Specify at least one of: "
-            "--set-segment, --add-tag, --remove-tag[/red]"
+            "[red]✗ No update action specified.[/red]\n\n"
+            "  To update contacts, specify what to change:\n"
+            "    --set-segment 'value'   set the segment field\n"
+            "    --add-tag 'value'       add a tag\n"
+            "    --remove-tag 'value'    remove a tag\n\n"
+            "  Note: --segment and --tag are filter flags — they select\n"
+            "  which contacts to update, not what to update them to.\n\n"
+            "  Example:\n"
+            "    openkiln crm tag contacts \\\n"
+            "      --set-segment 'cold-email-agencies' --apply\n\n"
+            "    openkiln crm tag contacts \\\n"
+            "      --segment 'old-segment' \\\n"
+            "      --set-segment 'new-segment' --apply"
         )
         raise typer.Exit(code=1)
 

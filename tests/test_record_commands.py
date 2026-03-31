@@ -229,3 +229,92 @@ def test_import_fails_if_skill_not_installed(openkiln_home, tmp_path):
     )
     assert result.exit_code == 1
     assert "not installed" in result.output.lower()
+
+
+def test_import_map_remaps_columns(openkiln_home, tmp_path):
+    """--map remaps non-standard CSV columns to schema columns."""
+    _setup(runner, openkiln_home)
+    f = _make_csv(tmp_path, [
+        {"Title": "CEO", "EmailAddress": "john@acme.com",
+         "FullName": "John Smith"},
+    ])
+    result = runner.invoke(
+        app,
+        ["record", "import", str(f), "--type", "contact",
+         "--skill", "crm",
+         "--map", "Title=job_title",
+         "--map", "EmailAddress=email",
+         "--map", "FullName=full_name",
+         "--apply"],
+    )
+    assert result.exit_code == 0
+
+    import sqlite3
+    conn = sqlite3.connect(openkiln_home / "skills" / "crm.db")
+    row = conn.execute(
+        "SELECT job_title, email, full_name FROM contacts LIMIT 1"
+    ).fetchone()
+    conn.close()
+    assert row[0] == "CEO"
+    assert row[1] == "john@acme.com"
+    assert row[2] == "John Smith"
+
+
+def test_import_map_invalid_format_fails(openkiln_home, tmp_path):
+    """--map with invalid format fails with clear error."""
+    _setup(runner, openkiln_home)
+    f = _make_csv(tmp_path, [{"email": "a@b.com"}])
+    result = runner.invoke(
+        app,
+        ["record", "import", str(f), "--type", "contact",
+         "--skill", "crm", "--map", "invalid-no-equals",
+         "--apply"],
+    )
+    assert result.exit_code == 1
+    assert "Invalid --map format" in result.output
+
+
+def test_import_map_invalid_target_fails(openkiln_home, tmp_path):
+    """--map with unknown target column fails with clear error."""
+    _setup(runner, openkiln_home)
+    f = _make_csv(tmp_path, [{"email": "a@b.com"}])
+    result = runner.invoke(
+        app,
+        ["record", "import", str(f), "--type", "contact",
+         "--skill", "crm", "--map", "email=nonexistent_column",
+         "--apply"],
+    )
+    assert result.exit_code == 1
+    assert "not a valid column" in result.output
+
+
+def test_import_map_shows_in_dry_run(openkiln_home, tmp_path):
+    """--map mappings are reported in dry-run output."""
+    _setup(runner, openkiln_home)
+    f = _make_csv(tmp_path, [{"Title": "CEO", "email": "a@b.com"}])
+    result = runner.invoke(
+        app,
+        ["record", "import", str(f), "--type", "contact",
+         "--skill", "crm", "--map", "Title=job_title",
+         "--dry-run"],
+    )
+    assert result.exit_code == 0
+    assert "title" in result.output.lower()
+    assert "job_title" in result.output.lower()
+
+
+def test_import_dry_run_suggests_map_for_skipped_columns(
+    openkiln_home, tmp_path
+):
+    """Dry-run output suggests --map for skipped columns."""
+    _setup(runner, openkiln_home)
+    f = _make_csv(tmp_path, [
+        {"email": "a@b.com", "mystery_col": "value"}
+    ])
+    result = runner.invoke(
+        app,
+        ["record", "import", str(f), "--type", "contact",
+         "--skill", "crm", "--dry-run"],
+    )
+    assert result.exit_code == 0
+    assert "--map" in result.output

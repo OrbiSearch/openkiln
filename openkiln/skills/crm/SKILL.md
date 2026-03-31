@@ -52,6 +52,17 @@ is created with no contact data attached.
 All columns are optional. Unknown columns are skipped and reported.
 Missing columns import as NULL.
 
+If your CSV uses different column names, use --map to remap them:
+```bash
+openkiln record import contacts.csv --type contact --skill crm \
+  --map "Title=job_title" \
+  --map "linkedin_profile=linkedin_url" \
+  --apply
+```
+
+Multiple --map flags are supported. The target must be a valid
+column name from the schema above.
+
 ## Importing companies
 ```bash
 openkiln record import <file.csv> --type company --skill crm

@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import json
 from pathlib import Path
+from typing import Optional
 
 import typer
 from rich.console import Console
@@ -157,6 +158,15 @@ def import_records(
         None, "--skill",
         help="Skill to write record data to (e.g. crm)."
     ),
+    map_columns: Optional[list[str]] = typer.Option(
+        None, "--map",
+        help=(
+            "Map a CSV column to a schema column. "
+            "Format: 'CSVColumn=schema_column'. "
+            "Use multiple --map flags for multiple mappings. "
+            "Example: --map 'Title=job_title' --map 'linkedin_profile=linkedin_url'"
+        ),
+    ),
     dry_run: bool = typer.Option(
         True, "--dry-run/--apply",
         help="Preview import without writing data (default)."
@@ -217,6 +227,32 @@ def import_records(
 
     total_rows = len(all_rows)
 
+    # parse --map flags into a lookup: csv_col_lower -> schema_col
+    explicit_mappings: dict[str, str] = {}
+    if map_columns:
+        for mapping in map_columns:
+            if "=" not in mapping:
+                rprint(
+                    f"[red]✗ Invalid --map format: '{mapping}'\n"
+                    f"  Expected: --map 'CSVColumn=schema_column'[/red]"
+                )
+                raise typer.Exit(code=1)
+            src, dst = mapping.split("=", 1)
+            src = src.strip()
+            dst = dst.strip()
+            # validate target column exists in skill schema
+            if skill_columns and dst.lower() not in {
+                c.lower() for c in skill_columns
+            }:
+                rprint(
+                    f"[red]✗ --map target '{dst}' is not a valid column "
+                    f"for skill '{skill}'.\n"
+                    f"  Run: openkiln skill info {skill} "
+                    f"to see valid columns.[/red]"
+                )
+                raise typer.Exit(code=1)
+            explicit_mappings[src.lower()] = dst
+
     # identify column mapping
     unknown_columns: list[str] = []
     matched_columns: list[str] = []
@@ -224,7 +260,10 @@ def import_records(
     if skill_columns:
         skill_col_lower = {c.lower(): c for c in skill_columns}
         for col in csv_columns:
-            if col.lower() in skill_col_lower:
+            # check explicit mapping first, then exact match
+            if col.lower() in explicit_mappings:
+                matched_columns.append(col)
+            elif col.lower() in skill_col_lower:
                 matched_columns.append(col)
             else:
                 unknown_columns.append(col)
@@ -257,6 +296,7 @@ def import_records(
             imported=imported,
             skipped_dupes=skipped_dupes,
             unknown_columns=unknown_columns,
+            explicit_mappings=explicit_mappings,
             output_json=output_json,
         )
         return
@@ -301,7 +341,11 @@ def import_records(
                     fields = {"record_id": record_id}
 
                     for csv_col in matched_columns:
-                        schema_col = skill_col_lower.get(csv_col.lower())
+                        # explicit mapping takes precedence
+                        schema_col = (
+                            explicit_mappings.get(csv_col.lower())
+                            or skill_col_lower.get(csv_col.lower())
+                        )
                         if schema_col:
                             val = row.get(csv_col, "").strip() or None
                             fields[schema_col] = val
@@ -325,6 +369,7 @@ def import_records(
         imported=imported,
         skipped_dupes=skipped_dupes,
         unknown_columns=unknown_columns,
+        explicit_mappings=explicit_mappings,
         output_json=output_json,
     )
 
@@ -423,6 +468,7 @@ def _print_import_result(
     imported: int,
     skipped_dupes: int,
     unknown_columns: list[str],
+    explicit_mappings: dict[str, str],
     output_json: bool,
 ) -> None:
     """Prints import results in human or JSON format."""
@@ -436,6 +482,7 @@ def _print_import_result(
             "imported": imported,
             "skipped_duplicates": skipped_dupes,
             "skipped_unknown_columns": unknown_columns,
+            "column_mappings": explicit_mappings,
         }))
         return
 
@@ -449,6 +496,13 @@ def _print_import_result(
             f"  [yellow]Skipped (dupes):[/yellow] {skipped_dupes:>8,}"
         )
 
+    if explicit_mappings:
+        console.print(
+            f"\n  [green]Column mappings applied:[/green]"
+        )
+        for src, dst in explicit_mappings.items():
+            console.print(f"    ✓  {src} → {dst}")
+
     if unknown_columns:
         console.print(
             f"\n  [yellow]Skipped columns "
@@ -456,6 +510,10 @@ def _print_import_result(
         )
         for col in unknown_columns:
             console.print(f"    ○  {col}")
+        console.print(
+            f"\n  [dim]Tip: use --map 'ColumnName=schema_field' "
+            f"to import skipped columns.[/dim]"
+        )
 
     if dry_run:
         console.print(

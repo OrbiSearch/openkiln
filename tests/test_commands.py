@@ -66,16 +66,8 @@ def test_status_json_before_init_returns_error(openkiln_home):
     assert data["connected"] is False
 
 
-def test_update_fails_outside_git_repo(openkiln_home, tmp_path,
-                                        monkeypatch):
-    """update fails clearly when not run from a git repo."""
-    # point the command at a non-git directory
-    monkeypatch.setattr(
-        "openkiln.commands.update.Path.__file__",
-        str(tmp_path / "fake.py")
-    )
-    # we can't easily mock Path(__file__) so just verify
-    # the command exists and is registered
+def test_update_command_is_registered(openkiln_home):
+    """update command is registered and shows help."""
     result = runner.invoke(app, ["update", "--help"])
     assert result.exit_code == 0
     assert "Update" in result.output or "update" in result.output.lower()

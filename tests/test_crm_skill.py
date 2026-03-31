@@ -9,9 +9,12 @@ runner = CliRunner()
 
 
 def _setup(runner, openkiln_home):
-    """Helper: init + install crm."""
+    """Helper: init + install crm + mount skill CLI."""
     runner.invoke(app, ["init"])
     runner.invoke(app, ["skill", "install", "crm"])
+    # mount CRM CLI so crm subcommands are available
+    from openkiln.cli import _mount_skill_clis
+    _mount_skill_clis()
 
 
 def _insert_contact(openkiln_home, **kwargs) -> int:

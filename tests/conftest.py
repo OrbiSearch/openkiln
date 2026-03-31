@@ -38,7 +38,12 @@ def openkiln_home(tmp_path, monkeypatch):
     # reset singleton so it re-reads config fresh for each test
     config.reset()
 
+    # reset mounted skills so skill CLIs are re-discovered per test
+    import openkiln.cli as cli_mod
+    cli_mod._mounted_skills.clear()
+
     yield tmp_path
 
-    # cleanup — reset singleton after test
+    # cleanup — reset singleton and mounted skills after test
     config.reset()
+    cli_mod._mounted_skills.clear()

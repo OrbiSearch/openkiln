@@ -80,6 +80,59 @@ openkiln record import <file.csv> --type company --skill crm
 
 None. CRM skill has no external API dependencies.
 
+## Listing and filtering
+```bash
+# list contacts
+openkiln crm list contacts
+openkiln crm list contacts --segment "cold-email-agencies"
+openkiln crm list contacts --tag "priority"
+openkiln crm list contacts --not-contacted-since 30
+openkiln crm list contacts --segment "cold-email-agencies" --not-contacted-since 30
+openkiln crm list contacts --limit 100
+openkiln crm list contacts --json
+
+# list companies
+openkiln crm list companies
+openkiln crm list companies --segment "saas"
+```
+
+## Tagging and segmenting
+```bash
+# set segment on all contacts matching a filter
+openkiln crm tag contacts --segment "cold-email-agencies" --dry-run
+openkiln crm tag contacts --segment "cold-email-agencies" --apply
+
+# add a tag to specific records
+openkiln crm tag contacts --ids 1,2,3 --add-tag "priority" --apply
+
+# update a single contact by email
+openkiln crm tag contacts --email "john@acme.com" \
+  --set-segment "cold-email-agencies" --apply
+
+# remove a tag
+openkiln crm tag contacts --tag "priority" --remove-tag "priority" --apply
+```
+
+## Stats
+```bash
+openkiln crm stats
+openkiln crm stats --json
+```
+
+## Touch logging
+```bash
+# log an outbound email touch
+openkiln crm touch log --record-id 1 --channel email --direction outbound
+
+# log with a note
+openkiln crm touch log --record-id 1 --channel linkedin \
+  --note "Replied positively, follow up next week"
+
+# log against a campaign
+openkiln crm touch log --record-id 1 --channel email \
+  --campaign-id "q2-outreach"
+```
+
 ## Example workflow usage
 ```yaml
 source:

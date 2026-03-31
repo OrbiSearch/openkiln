@@ -141,25 +141,35 @@ def init_core() -> None:
 
 def init_skill(skill_name: str) -> None:
     """
-    Creates a skill database and applies its schema.
-    Schema SQL file must exist at:
-      openkiln/skills/<skill_name>/schema/001_initial.sql
+    Creates a skill database and applies all schema migrations in order.
+    Migration files must be at:
+      openkiln/skills/<skill_name>/schema/NNN_*.sql
+    Runs all .sql files in filename order.
     Safe to call multiple times — CREATE TABLE IF NOT EXISTS guards apply.
-    Called by openkiln skill install.
+    Called by openkiln skill install and on startup for existing skills.
     """
-    schema_path = SKILLS_DIR / skill_name / "schema" / "001_initial.sql"
-    if not schema_path.exists():
+    schema_dir = SKILLS_DIR / skill_name / "schema"
+    if not schema_dir.exists():
         raise RuntimeError(
-            f"Schema not found for skill '{skill_name}': {schema_path}"
+            f"Schema directory not found for skill '{skill_name}': "
+            f"{schema_dir}"
+        )
+
+    migration_files = sorted(schema_dir.glob("*.sql"))
+    if not migration_files:
+        raise RuntimeError(
+            f"No schema migrations found for skill '{skill_name}': "
+            f"{schema_dir}"
         )
 
     db_path = config.get().skill_db_path(skill_name)
     db_path.parent.mkdir(parents=True, exist_ok=True)
 
-    sql = schema_path.read_text()
     skill_conn = sqlite3.connect(db_path)
     try:
-        skill_conn.executescript(sql)
+        for migration_file in migration_files:
+            sql = migration_file.read_text()
+            skill_conn.executescript(sql)
         skill_conn.commit()
     finally:
         skill_conn.close()

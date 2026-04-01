@@ -51,10 +51,11 @@ openkiln workflow components
 **Requirements:** Python 3.11+
 
 ```bash
-# install
-pip install openkiln
+# install (via pipx — recommended)
+curl -fsSL https://openkiln.dev/install.sh | bash
 
-# initialise (creates ~/.openkiln/)
+# or install manually
+pipx install git+https://github.com/OrbiSearch/openkiln.git
 openkiln init
 
 # install skills

@@ -1,12 +1,10 @@
 #!/usr/bin/env bash
 # OpenKiln installer
-# Usage: bash install.sh
-# Or paste directly into a Claude Code / agent session
+# Usage: curl -fsSL https://openkiln.dev/install.sh | bash
 
-set -e
+set -euo pipefail
 
-REPO="https://github.com/OrbiSearch/openkiln"
-INSTALL_DIR="openkiln"
+REPO="https://github.com/OrbiSearch/openkiln.git"
 
 # ── colours ───────────────────────────────────────────────────
 
@@ -16,22 +14,23 @@ RED='\033[0;31m'
 BOLD='\033[1m'
 NC='\033[0m'
 
-ok()   { echo -e "${GREEN}✓${NC} $1"; }
-warn() { echo -e "${YELLOW}!${NC} $1"; }
-err()  { echo -e "${RED}✗${NC} $1"; exit 1; }
-header() { echo -e "\n${BOLD}$1${NC}"; }
+ok()   { echo -e "  ${GREEN}✓${NC} $1"; }
+warn() { echo -e "  ${YELLOW}!${NC} $1"; }
+err()  { echo -e "  ${RED}✗${NC} $1"; exit 1; }
+
+echo ""
+echo -e "  ${BOLD}OpenKiln installer${NC}"
+echo ""
 
 # ── python check ──────────────────────────────────────────────
-
-header "Checking Python version..."
 
 PYTHON=""
 for cmd in python3.13 python3.12 python3.11 python3; do
     if command -v "$cmd" &>/dev/null; then
-        version=$("$cmd" -c 'import sys; print(sys.version_info[:2])')
         if "$cmd" -c 'import sys; sys.exit(0 if sys.version_info >= (3,11) else 1)' 2>/dev/null; then
             PYTHON="$cmd"
-            ok "Found $cmd ($version)"
+            PYTHON_VERSION=$("$cmd" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
+            ok "Python ${PYTHON_VERSION}"
             break
         fi
     fi
@@ -41,73 +40,54 @@ if [ -z "$PYTHON" ]; then
     err "Python 3.11+ is required. Install from https://python.org"
 fi
 
-# ── clone or update ───────────────────────────────────────────
+# ── pipx check/install ───────────────────────────────────────
 
-header "Setting up OpenKiln repo..."
+if ! command -v pipx &>/dev/null; then
+    warn "pipx not found — installing..."
+    "$PYTHON" -m pip install --user pipx --quiet 2>/dev/null || {
+        err "Could not install pipx. Install it manually: ${PYTHON} -m pip install --user pipx"
+    }
+    "$PYTHON" -m pipx ensurepath 2>/dev/null || true
+    export PATH="$HOME/.local/bin:$PATH"
 
-if [ -d "$INSTALL_DIR/.git" ]; then
-    warn "Repo already exists at ./$INSTALL_DIR — pulling latest..."
-    cd "$INSTALL_DIR"
-    git pull origin main
-else
-    if [ -d "$INSTALL_DIR" ]; then
-        err "Directory ./$INSTALL_DIR exists but is not a git repo. Remove it and retry."
+    if ! command -v pipx &>/dev/null; then
+        err "pipx installed but not on PATH. Add ~/.local/bin to your PATH and try again."
     fi
-    git clone "$REPO" "$INSTALL_DIR"
-    cd "$INSTALL_DIR"
-    ok "Cloned to ./$INSTALL_DIR"
 fi
 
-# ── venv ──────────────────────────────────────────────────────
+ok "pipx"
 
-header "Creating virtual environment..."
+# ── install openkiln ─────────────────────────────────────────
 
-if [ ! -d ".venv" ]; then
-    "$PYTHON" -m venv .venv
-    ok "Created .venv"
+echo ""
+
+# get latest release tag (falls back to main if no releases)
+LATEST_TAG=""
+if command -v curl &>/dev/null; then
+    LATEST_TAG=$(curl -fsSL "https://api.github.com/repos/OrbiSearch/openkiln/releases/latest" 2>/dev/null \
+        | "$PYTHON" -c "import sys,json; print(json.load(sys.stdin).get('tag_name',''))" 2>/dev/null || echo "")
+fi
+
+if [ -n "$LATEST_TAG" ]; then
+    ok "Latest release: ${LATEST_TAG}"
+    pipx install "git+${REPO}@${LATEST_TAG}"
 else
-    ok ".venv already exists"
+    pipx install "git+${REPO}"
 fi
-
-source .venv/bin/activate
-
-# ── install ───────────────────────────────────────────────────
-
-header "Installing OpenKiln..."
-
-pip install -e ".[dev]" --quiet
-ok "Installed openkiln"
-
-# ── verify ────────────────────────────────────────────────────
-
-header "Verifying installation..."
-
-if ! command -v openkiln &>/dev/null; then
-    err "openkiln command not found after install. Something went wrong."
-fi
-
-ok "openkiln command available"
 
 # ── init ──────────────────────────────────────────────────────
 
-header "Initialising OpenKiln..."
-
-openkiln init
-
-# ── done ──────────────────────────────────────────────────────
+echo ""
+openkiln init 2>/dev/null || true
 
 echo ""
-echo -e "${BOLD}${GREEN}OpenKiln is ready.${NC}"
+echo -e "  ${BOLD}${GREEN}OpenKiln installed.${NC}"
 echo ""
-echo "Next steps:"
-echo "  source .venv/bin/activate     # activate the environment"
-echo "  openkiln --help               # see all commands"
-echo "  openkiln skill list           # see available skills"
-echo "  cat AGENTS.md                 # if you're an AI agent, read this first"
+echo "  Get started:"
+echo "    openkiln --help"
+echo "    openkiln skill list"
+echo "    openkiln skill install crm"
 echo ""
-echo "Quick start:"
-echo "  openkiln skill install crm"
-echo "  openkiln skill install orbisearch"
-echo "  openkiln record inspect your-contacts.csv --skill crm"
-echo "  openkiln record import your-contacts.csv --type contact --skill crm --apply"
+echo "  Upgrade anytime:"
+echo "    openkiln update"
 echo ""

@@ -1,0 +1,23 @@
+[skill]
+name = "smartlead"
+version = "0.1.0"
+description = "Campaign management and lead outreach via the Smartlead API."
+author = "OrbiSearch"
+
+[[skill.provides]]
+type = "sink"
+name = "smartlead.push"
+description = "Push contacts to a Smartlead campaign"
+
+[skill.requires]
+skills = []
+
+[[skill.config]]
+key = "SMARTLEAD_API_KEY"
+env_var = "SMARTLEAD_API_KEY"
+config_path = "skills.smartlead.api_key"
+required = true
+
+[[skill.record_types]]
+name = "contact"
+dedup_key = "email"

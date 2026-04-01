@@ -1,0 +1,19 @@
+[skill]
+name = "orbisearch"
+version = "0.1.0"
+description = "Email verification via the OrbiSearch API."
+author = "OrbiSearch"
+
+[[skill.provides]]
+type = "transform"
+name = "orbisearch.validate"
+description = "Verify email deliverability"
+
+[skill.requires]
+skills = []
+
+[[skill.config]]
+key = "ORBISEARCH_API_KEY"
+env_var = "ORBISEARCH_API_KEY"
+config_path = "skills.orbisearch.api_key"
+required = true

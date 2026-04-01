@@ -1,0 +1,36 @@
+[skill]
+name = "crm"
+version = "0.1.0"
+description = "Contact and company data management."
+author = "OrbiSearch"
+
+[[skill.provides]]
+type = "source"
+name = "crm.contacts"
+description = "Read contacts from crm.db"
+
+[[skill.provides]]
+type = "source"
+name = "crm.companies"
+description = "Read companies from crm.db"
+
+[[skill.provides]]
+type = "sink"
+name = "crm.contacts"
+description = "Write/update contacts in crm.db"
+
+[[skill.provides]]
+type = "sink"
+name = "crm.companies"
+description = "Write/update companies in crm.db"
+
+[skill.requires]
+skills = []
+
+[[skill.record_types]]
+name = "contact"
+dedup_key = "email"
+
+[[skill.record_types]]
+name = "company"
+dedup_key = "domain"

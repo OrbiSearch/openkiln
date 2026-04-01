@@ -890,3 +890,157 @@ def monitor(
     console.print()
     console.print(table)
     console.print(f"\n  Showing {len(leads)} leads.\n")
+
+
+# ── Engagement Sync ──────────────────────────────────────────
+
+
+@app.command("sync-touches")
+def sync_touches(
+    campaign_id: int = typer.Argument(..., help="Campaign ID."),
+    apply: bool = typer.Option(
+        False, "--apply", help="Actually create CRM touches. Default is dry run."
+    ),
+    output_json: bool = typer.Option(
+        False, "--json", help="Output as JSON."
+    ),
+) -> None:
+    """Sync Smartlead engagement back to CRM as touches.
+
+    Pulls lead-level stats from Smartlead for contacts that were pushed
+    from CRM. Creates touch records for replied/bounced events.
+    Skips contacts that already have a touch for this campaign.
+    """
+    from openkiln.skills.crm import queries as crm_queries
+
+    # get local push records for this campaign
+    pushes = queries.get_pushes_for_campaign(campaign_id)
+    if not pushes:
+        rprint(f"[yellow]No contacts pushed to campaign {campaign_id}.[/yellow]")
+        raise typer.Exit()
+
+    # fetch lead data from Smartlead
+    try:
+        client = get_client()
+    except SmartleadError as e:
+        _handle_api_error(e)
+
+    # build email -> push mapping
+    push_by_email = {p["email"].lower(): p for p in pushes}
+
+    # fetch all leads from the campaign (paginated)
+    all_leads: list[dict] = []
+    offset = 0
+    while True:
+        try:
+            batch = client.get_campaign_leads(campaign_id, offset=offset, limit=100)
+        except SmartleadError as e:
+            _handle_api_error(e)
+        if not batch:
+            break
+        all_leads.extend(batch)
+        if len(batch) < 100:
+            break
+        offset += 100
+
+    # match leads to pushed contacts and find new touches
+    touches_to_create: list[dict] = []
+    updated_pushes: list[dict] = []
+
+    for lead in all_leads:
+        email = (lead.get("email") or "").lower()
+        push = push_by_email.get(email)
+        if not push:
+            continue
+
+        record_id = push["record_id"]
+        reply_count = lead.get("reply_count", lead.get("email_reply_count", 0)) or 0
+        old_reply_count = push["reply_count"] or 0
+
+        # track engagement updates
+        update = {
+            "record_id": record_id,
+            "campaign_id": campaign_id,
+            "email": email,
+            "sent_count": lead.get("sent_count", lead.get("email_sent_count", 0)) or 0,
+            "open_count": lead.get("open_count", lead.get("email_open_count", 0)) or 0,
+            "click_count": lead.get("click_count", lead.get("email_click_count", 0)) or 0,
+            "reply_count": reply_count,
+        }
+        updated_pushes.append(update)
+
+        # create touches for new replies
+        if reply_count > old_reply_count:
+            new_replies = reply_count - old_reply_count
+            for _ in range(new_replies):
+                touches_to_create.append({
+                    "record_id": record_id,
+                    "channel": "email",
+                    "direction": "inbound",
+                    "note": f"Reply via Smartlead campaign {campaign_id}",
+                    "campaign_id": str(campaign_id),
+                })
+
+    summary = {
+        "campaign_id": campaign_id,
+        "leads_matched": len(updated_pushes),
+        "new_touches": len(touches_to_create),
+        "dry_run": not apply,
+    }
+
+    if not apply:
+        if output_json:
+            typer.echo(json.dumps(summary, indent=2))
+            return
+
+        console.print(f"\n[bold]Dry run — sync touches for campaign {campaign_id}[/bold]")
+        console.print(f"  Leads matched to CRM: {len(updated_pushes)}")
+        console.print(f"  New reply touches to create: {len(touches_to_create)}")
+        if touches_to_create:
+            console.print("\nRun with [bold]--apply[/bold] to create touches.")
+        console.print()
+        return
+
+    # apply: update push records and create CRM touches
+    conn = queries._connection()
+    try:
+        for update in updated_pushes:
+            conn.execute(
+                """
+                UPDATE lead_pushes SET
+                    sent_count = ?, open_count = ?, click_count = ?,
+                    reply_count = ?, last_synced_at = datetime('now')
+                WHERE record_id = ? AND campaign_id = ?
+                """,
+                (
+                    update["sent_count"], update["open_count"],
+                    update["click_count"], update["reply_count"],
+                    update["record_id"], update["campaign_id"],
+                ),
+            )
+        conn.commit()
+    finally:
+        conn.close()
+
+    # create CRM touches
+    for touch in touches_to_create:
+        crm_queries.log_touch(
+            record_id=touch["record_id"],
+            channel=touch["channel"],
+            direction=touch["direction"],
+            note=touch["note"],
+            campaign_id=touch["campaign_id"],
+        )
+
+    summary["dry_run"] = False
+
+    if output_json:
+        typer.echo(json.dumps(summary, indent=2))
+        return
+
+    console.print(
+        f"\n[bold green]\u2713 Synced engagement for campaign {campaign_id}[/bold green]"
+    )
+    console.print(f"  Updated {len(updated_pushes)} lead push records")
+    console.print(f"  Created {len(touches_to_create)} CRM touches")
+    console.print()

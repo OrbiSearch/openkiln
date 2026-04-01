@@ -1,6 +1,6 @@
 # OpenKiln
 
-Open-source, agentic data workflow CLI. The composable alternative to Clay.
+Open-source, GTM agentic data workflow CLI. It's like OpenClaw & Clay had a baby.
 
 Build data enrichment and outbound pipelines from modular building blocks.
 Install skills to connect services, compose them into workflows with YAML,

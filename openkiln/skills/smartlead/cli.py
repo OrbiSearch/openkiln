@@ -438,7 +438,7 @@ def sequence(
         False, "--json", help="Output as JSON."
     ),
 ) -> None:
-    """Set email sequences for a campaign from a file.
+    """Set email sequences for a campaign from a JSON file.
 
     File format (JSON array):
     [
@@ -453,19 +453,14 @@ def sequence(
     """
     content = file.read_text()
 
-    # try JSON first, then YAML
     try:
         sequences = json.loads(content)
     except json.JSONDecodeError:
-        try:
-            import yaml  # noqa: F811
-            sequences = yaml.safe_load(content)
-        except Exception:
-            rprint("[red]\u2717 Could not parse file as JSON or YAML.[/red]")
-            raise typer.Exit(code=1)
+        rprint("[red]\u2717 Could not parse file as JSON.[/red]")
+        raise typer.Exit(code=1)
 
     if not isinstance(sequences, list):
-        rprint("[red]\u2717 File must contain a JSON/YAML array of sequence steps.[/red]")
+        rprint("[red]\u2717 File must contain a JSON array of sequence steps.[/red]")
         raise typer.Exit(code=1)
 
     try:

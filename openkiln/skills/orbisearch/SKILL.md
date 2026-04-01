@@ -23,30 +23,76 @@ Get a free API key at orbisearch.com.
 If no key is configured, commands requiring this skill will fail
 with instructions to set the key.
 
-## Transform: orbisearch.validate
+## CLI Commands
 
-Verifies email addresses via the OrbiSearch API.
+### verify
 
-### Input fields required
+Verify a single email address in real-time.
 
-| Field | Type | Notes                         |
-|-------|------|-------------------------------|
-| email | text | Must be present on the record |
+```bash
+openkiln orbisearch verify jane.doe@acme.com
+openkiln orbisearch verify jane.doe@acme.com --timeout 30
+openkiln orbisearch verify jane.doe@acme.com --json
+```
 
-### Output fields written to orbisearch.db
+**Flags:**
+- `--timeout` — Timeout in seconds, 3-90 (default: 70)
+- `--json` — Output as JSON
 
-| Field          | Type    | Values                                              |
-|----------------|---------|-----------------------------------------------------|
-| status         | text    | safe, risky, invalid, unknown                       |
-| substatus      | text    | catch_all, disposable, role_account,                |
-|                |         | invalid_syntax, null                                |
-| explanation    | text    | Human-readable result description                   |
-| email_provider | text    | Google Workspace, Microsoft Outlook, etc            |
-| is_disposable  | boolean |                                                     |
-| is_role_account| boolean |                                                     |
-| is_free        | boolean |                                                     |
+### credits
 
-### Status values
+Show your current OrbiSearch credit balance.
+
+```bash
+openkiln orbisearch credits
+openkiln orbisearch credits --json
+```
+
+**Flags:**
+- `--json` — Output as JSON
+
+### bulk-submit
+
+Submit a bulk email verification job. Defaults to dry-run.
+
+```bash
+# Dry run — shows what would be submitted
+openkiln orbisearch bulk-submit user1@example.com user2@example.com
+
+# Actually submit the job
+openkiln orbisearch bulk-submit user1@example.com user2@example.com --apply
+openkiln orbisearch bulk-submit user1@example.com user2@example.com --apply --json
+```
+
+**Flags:**
+- `--apply` — Actually submit the job (default: dry-run)
+- `--json` — Output as JSON
+
+### bulk-status
+
+Check the status and progress of a bulk verification job.
+
+```bash
+openkiln orbisearch bulk-status 123e4567-e89b-12d3-a456-426614174000
+openkiln orbisearch bulk-status 123e4567-e89b-12d3-a456-426614174000 --json
+```
+
+**Flags:**
+- `--json` — Output as JSON
+
+### bulk-results
+
+Retrieve results of a completed bulk verification job.
+
+```bash
+openkiln orbisearch bulk-results 123e4567-e89b-12d3-a456-426614174000
+openkiln orbisearch bulk-results 123e4567-e89b-12d3-a456-426614174000 --json
+```
+
+**Flags:**
+- `--json` — Output as JSON
+
+## Status values
 
 | Status  | Meaning                                              |
 |---------|------------------------------------------------------|
@@ -55,27 +101,17 @@ Verifies email addresses via the OrbiSearch API.
 | invalid | Undeliverable — do not email                         |
 | unknown | Verification failed — retry or skip                  |
 
-### Verification modes
+## Verification modes
 
-Single (default) — real-time, one email at a time:
-  - Recommended rate: 20 requests/second
-  - Cost: 0.2 credits per verification
-  - Results cached 24 hours
+**Single** (default) — real-time, one email at a time:
+- Recommended rate: ~16 requests/second
+- Cost: 0.2 credits per verification
+- Results cached 24 hours
 
-Bulk — async job, better for large lists:
-  - Submit a job, poll for completion, retrieve results
-  - Cost: 0.2 credits per email (deduplicated)
-  - Recommended for lists over 20 emails
-
-OpenKiln uses bulk mode automatically when validating
-more than 20 emails in a single workflow run.
-
-## Credits
-
-Check your current OrbiSearch credit balance:
-```bash
-openkiln skill info orbisearch --credits
-```
+**Bulk** — async job, better for large lists:
+- Submit a job, poll for completion, retrieve results
+- Cost: 0.2 credits per email (deduplicated)
+- Recommended for lists over 20 emails
 
 ## Example workflow usage
 ```yaml

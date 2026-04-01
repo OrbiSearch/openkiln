@@ -1,6 +1,6 @@
-# OpenKiln
+# OpenKiln 🔥
 
-Open-source, GTM agentic data workflow CLI. It's like OpenClaw & Clay had a baby.
+Open-source, agentic GTM data workflow CLI. It's like OpenClaw & Clay had a baby!
 
 Build data enrichment and outbound pipelines from modular building blocks.
 Install skills to connect services, compose them into workflows with YAML,
@@ -16,10 +16,10 @@ OpenKiln is built around a few simple ideas that snap together like LEGO:
 
 **Skills** are plugins that connect OpenKiln to external services and data.
 Each skill owns its own database and provides building blocks for workflows.
-Install only what you need:
+Install only what you need. For example:
 
 - **CRM** — manage contacts and companies, import from CSV, tag, filter, track touches
-- **OrbiSearch** — verify email addresses (catch-all, disposable, role account detection)
+- **OrbiSearch** — verify email addresses (handles SEGs, catch-all domains & greylisted servers)
 - **Smartlead** — manage campaigns, push contacts, monitor engagement
 
 **Sources** read data in. A source pulls rows from a skill's database or
@@ -152,7 +152,7 @@ how filters work, discovering components, and tips.
 
 **Recommended setup:** Run OpenKiln on an always-on server (VPS, home server,
 cloud instance). Access it from any device via [Telegram](https://telegram.org)
-through Claude Code channels, or any LLM coding agent.
+through [Claude Code channels](https://code.claude.com/docs/en/channels-reference), or any LLM coding agent.
 
 This gives you:
 - Persistent data that doesn't disappear when you close your laptop
@@ -160,7 +160,7 @@ This gives you:
 - Switch between devices seamlessly
 
 You can also run OpenKiln directly in your terminal, through
-[Claude Code](https://claude.ai/claude-code), or any LLM chatbot
+[Claude Code](https://code.claude.com/docs/en/overview), or any LLM chatbot
 that can execute shell commands.
 
 ---
@@ -214,4 +214,4 @@ Cannot be offered as a managed service or used to build competing products.
 
 ---
 
-Built by [OrbiSearch](https://orbisearch.com) — email verification for developers and agents.
+Built by [OrbiSearch](https://orbisearch.com) — Market-leading accuracy on the hardest B2B emails. Pricing that actually scales.

@@ -767,3 +767,126 @@ def push(
         f"campaign {campaign_id}[/bold green] "
         f"({batch_count} batch{'es' if batch_count != 1 else ''}).\n"
     )
+
+
+# ── Campaign Control ─────────────────────────────────────────
+
+
+@app.command("start")
+def start(
+    campaign_id: int = typer.Argument(..., help="Campaign ID to start."),
+    yes: bool = typer.Option(
+        False, "--yes", "-y", help="Skip confirmation prompt."
+    ),
+) -> None:
+    """Start a campaign (set status to ACTIVE)."""
+    if not yes:
+        confirm = typer.confirm(
+            f"Start campaign {campaign_id}? This will begin sending emails."
+        )
+        if not confirm:
+            raise typer.Abort()
+
+    try:
+        client = get_client()
+        client.update_campaign_status(campaign_id, "START")
+    except SmartleadError as e:
+        _handle_api_error(e)
+
+    console.print(
+        f"\n[bold green]\u2713 Campaign {campaign_id} started.[/bold green]\n"
+    )
+
+
+@app.command("pause")
+def pause(
+    campaign_id: int = typer.Argument(..., help="Campaign ID to pause."),
+) -> None:
+    """Pause a campaign."""
+    try:
+        client = get_client()
+        client.update_campaign_status(campaign_id, "PAUSED")
+    except SmartleadError as e:
+        _handle_api_error(e)
+
+    console.print(
+        f"\n[yellow]\u23f8 Campaign {campaign_id} paused.[/yellow]\n"
+    )
+
+
+@app.command("stop")
+def stop(
+    campaign_id: int = typer.Argument(..., help="Campaign ID to stop."),
+    yes: bool = typer.Option(
+        False, "--yes", "-y", help="Skip confirmation prompt."
+    ),
+) -> None:
+    """Stop a campaign. Stopped campaigns cannot be restarted."""
+    if not yes:
+        confirm = typer.confirm(
+            f"Stop campaign {campaign_id}? Stopped campaigns cannot be restarted."
+        )
+        if not confirm:
+            raise typer.Abort()
+
+    try:
+        client = get_client()
+        client.update_campaign_status(campaign_id, "STOPPED")
+    except SmartleadError as e:
+        _handle_api_error(e)
+
+    console.print(
+        f"\n[red]\u23f9 Campaign {campaign_id} stopped.[/red]\n"
+    )
+
+
+@app.command("monitor")
+def monitor(
+    campaign_id: int = typer.Argument(..., help="Campaign ID."),
+    output_json: bool = typer.Option(
+        False, "--json", help="Output as JSON."
+    ),
+) -> None:
+    """Show lead-level engagement data for a campaign."""
+    try:
+        client = get_client()
+        leads = client.get_campaign_leads(campaign_id, limit=100)
+    except SmartleadError as e:
+        _handle_api_error(e)
+
+    if output_json:
+        typer.echo(json.dumps(leads, indent=2))
+        return
+
+    if not leads:
+        console.print(f"\n[dim]No leads in campaign {campaign_id}.[/dim]\n")
+        return
+
+    table = Table(title=f"Campaign {campaign_id} — Lead Activity")
+    table.add_column("Email")
+    table.add_column("Status")
+    table.add_column("Sent", justify="right")
+    table.add_column("Opened", justify="right")
+    table.add_column("Clicked", justify="right")
+    table.add_column("Replied", justify="right")
+
+    for lead in leads:
+        email = lead.get("email", "")
+        status = lead.get("lead_status", lead.get("status", ""))
+        sent = lead.get("sent_count", lead.get("email_sent_count", 0)) or 0
+        opened = lead.get("open_count", lead.get("email_open_count", 0)) or 0
+        clicked = lead.get("click_count", lead.get("email_click_count", 0)) or 0
+        replied = lead.get("reply_count", lead.get("email_reply_count", 0)) or 0
+
+        table.add_row(
+            email,
+            status,
+            str(sent),
+            str(opened),
+            str(clicked),
+            str(replied),
+        )
+
+    console.print()
+    console.print(table)
+    console.print(f"\n  Showing {len(leads)} leads.\n")

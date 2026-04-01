@@ -292,15 +292,25 @@ def sync(
         try:
             seqs = client.get_sequences(cid)
             queries.upsert_sequences(cid, seqs)
-        except SmartleadError:
+        except SmartleadError as e:
             seqs = []
+            if not output_json:
+                console.print(
+                    f"  [yellow]\u26a0 Failed to sync sequences for "
+                    f"{campaign.get('name', cid)}: {e}[/yellow]"
+                )
 
         # sync analytics snapshot
         try:
             analytics = client.get_campaign_analytics(cid)
             queries.insert_campaign_stats(cid, analytics)
-        except SmartleadError:
+        except SmartleadError as e:
             analytics = {}
+            if not output_json:
+                console.print(
+                    f"  [yellow]\u26a0 Failed to sync analytics for "
+                    f"{campaign.get('name', cid)}: {e}[/yellow]"
+                )
 
         synced.append({
             "id": cid,
@@ -393,14 +403,20 @@ def duplicate(
             client.save_sequences(new_id, source_sequences)
 
         # copy email accounts
+        accounts_copied = False
         try:
             source_accounts = client.get_campaign_email_accounts(campaign_id)
             if source_accounts:
                 account_ids = [a["id"] for a in source_accounts if "id" in a]
                 if account_ids:
                     client.add_email_accounts_to_campaign(new_id, account_ids)
-        except SmartleadError:
-            pass  # non-critical — accounts can be added manually
+                    accounts_copied = True
+        except SmartleadError as e:
+            if not output_json:
+                console.print(
+                    f"  [yellow]\u26a0 Could not copy email accounts: {e}[/yellow]\n"
+                    f"  Add them manually: openkiln smartlead accounts add {new_id} --account-id <id>"
+                )
 
     except SmartleadError as e:
         _handle_api_error(e)

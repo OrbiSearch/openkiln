@@ -37,6 +37,12 @@ class WorkflowDef:
     file_path: str | None = None
 
 
+_VALID_KEYS = {
+    "name", "version", "author", "requires",
+    "source", "transforms", "filter", "sinks",
+}
+
+
 def parse_workflow(file_path: Path) -> WorkflowDef:
     """Parse a workflow YAML file into a WorkflowDef."""
     try:
@@ -53,9 +59,49 @@ def parse_workflow(file_path: Path) -> WorkflowDef:
     if not isinstance(data, dict):
         raise ValueError(f"Workflow file must be a YAML mapping: {file_path}")
 
+    # check for unrecognized keys (likely typos)
+    errors: list[str] = []
+    for key in data:
+        if key not in _VALID_KEYS:
+            # suggest closest match
+            from difflib import get_close_matches
+            matches = get_close_matches(key, _VALID_KEYS, n=1, cutoff=0.6)
+            if matches:
+                errors.append(
+                    f"Unknown key '{key}' — did you mean '{matches[0]}'?"
+                )
+            else:
+                errors.append(f"Unknown key '{key}'")
+
+    # check required fields and types
+    if "source" not in data:
+        errors.append("Missing required key 'source'")
+    elif not isinstance(data["source"], dict):
+        errors.append("'source' must be a mapping (skill, type, filter)")
+
+    if "sinks" not in data:
+        errors.append("Missing required key 'sinks'")
+    elif not isinstance(data["sinks"], list):
+        errors.append("'sinks' must be a list")
+
+    if "transforms" in data and not isinstance(data["transforms"], list):
+        errors.append("'transforms' must be a list")
+
+    if "requires" in data and not isinstance(data["requires"], list):
+        errors.append("'requires' must be a list")
+
+    if "filter" in data and not isinstance(data["filter"], dict):
+        errors.append("'filter' must be a mapping")
+
+    if errors:
+        raise ValueError(
+            f"Workflow YAML errors in {file_path}:\n"
+            + "\n".join(f"  - {e}" for e in errors)
+        )
+
     return WorkflowDef(
         name=data.get("name", file_path.stem),
-        version=data.get("version", "1.0.0"),
+        version=str(data.get("version", "1.0.0")),
         author=data.get("author", ""),
         requires=data.get("requires", []),
         source=data.get("source", {}),

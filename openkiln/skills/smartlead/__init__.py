@@ -12,9 +12,9 @@ LEAD_COLUMNS = [
     "company_url",
 ]
 
-# CRM contact field -> Smartlead lead field mapping.
-# Used when pushing CRM contacts to a Smartlead campaign.
-CRM_TO_SMARTLEAD = {
+# Contact field -> Smartlead lead field mapping.
+# Used when pushing contacts to a Smartlead campaign.
+CONTACT_TO_SMARTLEAD = {
     "email": "email",
     "first_name": "first_name",
     "last_name": "last_name",

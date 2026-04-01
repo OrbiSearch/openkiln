@@ -11,7 +11,7 @@ from rich import print as rprint
 
 from openkiln import db
 from openkiln.skills.smartlead.api import get_client, SmartleadError
-from openkiln.skills.smartlead import queries, CRM_TO_SMARTLEAD
+from openkiln.skills.smartlead import queries, CONTACT_TO_SMARTLEAD
 
 app = typer.Typer(
     name="smartlead",
@@ -487,7 +487,7 @@ def duplicate(
 def sequence(
     campaign_id: int = typer.Argument(..., help="Campaign ID."),
     file: Path = typer.Option(
-        ..., "--file", "-f", help="JSON or YAML file with sequence steps.",
+        ..., "--file", "-f", help="JSON file with sequence steps.",
         exists=True, readable=True,
     ),
     output_json: bool = typer.Option(
@@ -666,14 +666,14 @@ _INTERNAL_FIELDS = {
 def _map_contact_to_lead(contact: dict) -> dict:
     """Map a contact row to a Smartlead lead dict.
 
-    Known fields map via CRM_TO_SMARTLEAD.
+    Known fields map via CONTACT_TO_SMARTLEAD.
     Remaining non-internal fields go into custom_fields
     so they're available as template variables in sequences.
     """
     lead: dict = {}
-    mapped_crm_fields = set(CRM_TO_SMARTLEAD.keys())
+    mapped_crm_fields = set(CONTACT_TO_SMARTLEAD.keys())
 
-    for crm_field, sl_field in CRM_TO_SMARTLEAD.items():
+    for crm_field, sl_field in CONTACT_TO_SMARTLEAD.items():
         val = contact.get(crm_field)
         if val is not None and val != "":
             lead[sl_field] = val

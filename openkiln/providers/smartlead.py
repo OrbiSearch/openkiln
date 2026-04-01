@@ -26,7 +26,7 @@ def push(rows: list[dict], *, campaign_id: int, **kwargs: Any) -> dict:
     Sink: push rows of contact data to a Smartlead campaign.
 
     Each row should contain CRM contact fields (email, first_name, etc).
-    Fields are mapped via CRM_TO_SMARTLEAD to Smartlead lead fields.
+    Fields are mapped via CONTACT_TO_SMARTLEAD to Smartlead lead fields.
     Deduplicates against previously pushed contacts.
     Returns a summary dict.
 

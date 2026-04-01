@@ -304,7 +304,7 @@ def test_init_exports():
     from openkiln.skills.smartlead import (
         __version__,
         LEAD_COLUMNS,
-        CRM_TO_SMARTLEAD,
+        CONTACT_TO_SMARTLEAD,
         CAMPAIGN_STATUSES,
         SUPPORTED_TYPES,
         DEDUP_KEYS,
@@ -312,8 +312,8 @@ def test_init_exports():
 
     assert __version__ == "0.1.0"
     assert "email" in LEAD_COLUMNS
-    assert CRM_TO_SMARTLEAD["email"] == "email"
-    assert CRM_TO_SMARTLEAD["phone"] == "phone_number"
+    assert CONTACT_TO_SMARTLEAD["email"] == "email"
+    assert CONTACT_TO_SMARTLEAD["phone"] == "phone_number"
     assert "ACTIVE" in CAMPAIGN_STATUSES
     assert "contact" in SUPPORTED_TYPES
     assert DEDUP_KEYS["contact"] == "email"

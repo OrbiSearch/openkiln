@@ -10,7 +10,7 @@ from rich.table import Table
 from rich import print as rprint
 
 from openkiln.skills.smartlead.api import get_client, SmartleadError
-from openkiln.skills.smartlead import queries
+from openkiln.skills.smartlead import queries, CRM_TO_SMARTLEAD
 
 app = typer.Typer(
     name="smartlead",
@@ -578,4 +578,192 @@ def accounts_add(
     console.print(
         f"\n[green]\u2713[/green] Added {len(account_id)} email account(s) "
         f"to campaign {campaign_id}.\n"
+    )
+
+
+# ── Lead Push ────────────────────────────────────────────────
+
+PUSH_BATCH_SIZE = 400  # Smartlead API limit
+
+
+def _map_contact_to_lead(contact: dict) -> dict:
+    """Map a CRM contact row to a Smartlead lead dict."""
+    lead: dict = {}
+    for crm_field, sl_field in CRM_TO_SMARTLEAD.items():
+        val = contact.get(crm_field)
+        if val is not None and val != "":
+            lead[sl_field] = val
+    return lead
+
+
+def _load_contacts(
+    segment: str | None,
+    tag: str | None,
+    list_name: str | None,
+    lifecycle: str | None,
+    status: str | None,
+) -> list:
+    """Load contacts from CRM with filters. Returns list of Row objects."""
+    from openkiln.skills.crm import queries as crm_queries
+
+    if list_name:
+        # get all members — use a high limit
+        return crm_queries.get_list_members(list_name, limit=100_000)
+
+    # build filter kwargs
+    kwargs: dict = {"limit": 100_000}
+    if segment:
+        kwargs["segment"] = segment
+    if tag:
+        kwargs["tag"] = tag
+
+    contacts = crm_queries.list_contacts(**kwargs)
+
+    # apply lifecycle/status filters (not built into list_contacts)
+    if lifecycle:
+        contacts = [c for c in contacts if c["lifecycle_stage"] == lifecycle]
+    if status:
+        contacts = [c for c in contacts if c["lead_status"] == status]
+
+    return contacts
+
+
+@app.command("push")
+def push(
+    campaign_id: int = typer.Argument(..., help="Smartlead campaign ID."),
+    segment: Optional[str] = typer.Option(
+        None, "--segment", help="Filter CRM contacts by segment."
+    ),
+    tag: Optional[str] = typer.Option(
+        None, "--tag", help="Filter CRM contacts by tag."
+    ),
+    list_name: Optional[str] = typer.Option(
+        None, "--list", help="Push contacts from a CRM list."
+    ),
+    lifecycle: Optional[str] = typer.Option(
+        None, "--lifecycle", help="Filter by lifecycle stage."
+    ),
+    lead_status: Optional[str] = typer.Option(
+        None, "--status", help="Filter by lead status."
+    ),
+    apply: bool = typer.Option(
+        False, "--apply", help="Actually push. Default is dry run."
+    ),
+    output_json: bool = typer.Option(
+        False, "--json", help="Output as JSON."
+    ),
+) -> None:
+    """Push CRM contacts to a Smartlead campaign.
+
+    Default is dry run — shows what would be pushed. Use --apply to push.
+    Contacts already pushed to this campaign are skipped (dedup by email).
+    """
+    # load contacts from CRM
+    try:
+        contacts = _load_contacts(segment, tag, list_name, lifecycle, lead_status)
+    except Exception as e:
+        rprint(f"[red]\u2717 Failed to load contacts: {e}[/red]")
+        raise typer.Exit(code=1)
+
+    if not contacts:
+        rprint("[yellow]No contacts match the given filters.[/yellow]")
+        raise typer.Exit()
+
+    # filter out contacts without email
+    contacts_with_email = [c for c in contacts if c["email"]]
+    skipped_no_email = len(contacts) - len(contacts_with_email)
+
+    # dedup against already-pushed contacts
+    already_pushed = queries.get_pushed_emails(campaign_id)
+    to_push = [
+        c for c in contacts_with_email
+        if c["email"].lower() not in {e.lower() for e in already_pushed}
+    ]
+    skipped_dedup = len(contacts_with_email) - len(to_push)
+
+    # summary
+    summary = {
+        "campaign_id": campaign_id,
+        "total_contacts": len(contacts),
+        "skipped_no_email": skipped_no_email,
+        "skipped_already_pushed": skipped_dedup,
+        "to_push": len(to_push),
+        "dry_run": not apply,
+    }
+
+    if not apply:
+        # dry run
+        if output_json:
+            typer.echo(json.dumps(summary, indent=2))
+            return
+
+        console.print(f"\n[bold]Dry run — push to campaign {campaign_id}[/bold]")
+        console.print(f"  Total contacts matching filters: {len(contacts)}")
+        if skipped_no_email:
+            console.print(f"  Skipped (no email): {skipped_no_email}")
+        if skipped_dedup:
+            console.print(f"  Skipped (already pushed): {skipped_dedup}")
+        console.print(f"  [bold]Would push: {len(to_push)}[/bold]")
+        if to_push:
+            console.print(
+                f"\nRun with [bold]--apply[/bold] to push."
+            )
+        console.print()
+        return
+
+    if not to_push:
+        rprint("[yellow]Nothing to push — all contacts already pushed or have no email.[/yellow]")
+        raise typer.Exit()
+
+    # push in batches
+    try:
+        client = get_client()
+    except SmartleadError as e:
+        _handle_api_error(e)
+
+    pushed_count = 0
+    batch_count = 0
+
+    for i in range(0, len(to_push), PUSH_BATCH_SIZE):
+        batch = to_push[i : i + PUSH_BATCH_SIZE]
+        lead_list = [_map_contact_to_lead(dict(c)) for c in batch]
+
+        try:
+            client.add_leads_to_campaign(campaign_id, lead_list)
+        except SmartleadError as e:
+            rprint(
+                f"[red]\u2717 Batch {batch_count + 1} failed: {e}[/red]\n"
+                f"  Pushed {pushed_count} of {len(to_push)} before failure."
+            )
+            raise typer.Exit(code=1)
+
+        # record each push locally
+        for contact in batch:
+            queries.record_push(
+                record_id=contact["record_id"],
+                campaign_id=campaign_id,
+                email=contact["email"],
+            )
+
+        pushed_count += len(batch)
+        batch_count += 1
+
+        if not output_json:
+            console.print(
+                f"  Batch {batch_count}: pushed {len(batch)} leads "
+                f"({pushed_count}/{len(to_push)})"
+            )
+
+    summary["pushed"] = pushed_count
+    summary["batches"] = batch_count
+    summary["dry_run"] = False
+
+    if output_json:
+        typer.echo(json.dumps(summary, indent=2))
+        return
+
+    console.print(
+        f"\n[bold green]\u2713 Pushed {pushed_count} contacts to "
+        f"campaign {campaign_id}[/bold green] "
+        f"({batch_count} batch{'es' if batch_count != 1 else ''}).\n"
     )

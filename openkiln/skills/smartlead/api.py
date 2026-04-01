@@ -35,6 +35,17 @@ class SmartleadError(Exception):
         super().__init__(message)
 
 
+def _parse_error(body: str) -> str:
+    """Extract a human-readable message from a Smartlead error response."""
+    try:
+        import json as _json
+        parsed = _json.loads(body)
+        return parsed.get("message") or parsed.get("error") or body[:200]
+    except Exception:
+        # not JSON — likely an HTML error page, truncate
+        return body[:200]
+
+
 class SmartleadClient:
     """
     Smartlead API v1 client.
@@ -98,12 +109,14 @@ class SmartleadClient:
                         time.sleep(1.0 * (attempt + 1))
                         continue
                     raise SmartleadError(
-                        f"Server error: {response.text}", response.status_code
+                        f"Server error: {_parse_error(response.text)}",
+                        response.status_code,
                     )
 
                 if response.status_code >= 400:
                     raise SmartleadError(
-                        f"API error: {response.text}", response.status_code
+                        _parse_error(response.text),
+                        response.status_code,
                     )
 
                 # some endpoints return empty body

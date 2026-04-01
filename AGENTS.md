@@ -1,20 +1,15 @@
 # OpenKiln
 
-Open source agentic data workflow CLI. Built by OrbiSearch (orbisearch.com).
+Open-source, agentic GTM data workflow CLI. Built by OrbiSearch (orbisearch.com).
 
 ---
 
 ## Setup
 
-### From the repo (recommended)
 ```bash
-bash install.sh
-source .venv/bin/activate
+pipx install git+https://github.com/OrbiSearch/openkiln.git
+openkiln init
 ```
-
-Or paste the contents of install.sh directly into your session.
-This handles Python version checking, cloning, venv creation,
-pip install, and openkiln init automatically.
 
 ### Verify
 ```bash
@@ -23,7 +18,7 @@ openkiln status      # must return a summary, not an error
 ```
 
 If `openkiln --help` shows nothing or errors — the package is not
-installed. Run `pip install -e .` from the repo root first.
+installed. Run the install command above.
 
 > OpenKiln is fully implemented. All commands in `--help` are real
 > and runnable. Do not attempt to reimplement anything.
@@ -35,15 +30,18 @@ installed. Run `pip install -e .` from the repo root first.
 
 Three primitives:
 
-**Source** — pulls data in
-**Transform** — processes rows (Waterfall: try providers in sequence, stop on result)
-**Sink** — pushes data out
+**Source** — pulls data in (from a skill's database or external service)
+**Transform** — processes rows (validate, enrich, score)
+**Sink** — pushes data out (to external services or databases)
 
-A **Workflow** is a yml file chaining one Source, one or more Transforms,
+A **Workflow** is a YAML file chaining one Source, one or more Transforms,
 and one or more Sinks. See `workflows/examples/` for runnable examples.
+See `WORKFLOWS.md` for the complete workflow guide.
 
 **Skills** extend OpenKiln with new sources, transforms, and sinks.
-Each skill owns its own database. Skills are installed via the CLI.
+Each skill owns its own SQLite database and provides its own CLI commands.
+Skills are installed via the CLI and interact with each other only through
+the database attach layer — never through Python imports.
 
 ---
 
@@ -66,14 +64,6 @@ If status fails, run `openkiln init` before proceeding.
 Lives at `~/.openkiln/config.toml`. Created by `openkiln init`.
 Environment variables take precedence over config file values.
 See `.env.example` for all supported keys.
-
----
-
-## OrbiSearch
-
-Default email validation provider. Requires `ORBISEARCH_API_KEY`.
-Get a free key at orbisearch.com.
-Commands requiring a key fail with clear instructions if not configured.
 
 ---
 
@@ -107,6 +97,7 @@ openkiln skill install <name>
 ### Step 3 — Understand what each skill provides
 ```bash
 openkiln skill info <name>
+openkiln workflow components
 ```
 
 Read the output carefully. It tells you:
@@ -124,27 +115,25 @@ openkiln record inspect <file> --skill <name>
 
 ### Step 5 — Build and validate
 ```bash
-openkiln workflow template > my-workflow.yml
-# edit the yml
+# write your workflow YAML (see WORKFLOWS.md for format)
 openkiln workflow validate my-workflow.yml
 ```
 
 ### Step 6 — Execute
 ```bash
-openkiln workflow run my-workflow.yml --dry-run
-openkiln workflow run my-workflow.yml --apply
+openkiln workflow run my-workflow.yml           # dry run
+openkiln workflow run my-workflow.yml --apply    # execute
 ```
 
 ---
 
 ## Rules
 
-1. Always `--dry-run` before `--apply`
+1. Always dry run before `--apply`
 2. Run `openkiln status` after every bulk operation
-3. Never delete — use `clean` which archives
-4. Never prompt interactively — fail with a clear error if input is missing
-5. Use `--json` when processing output programmatically
-6. Run `openkiln status` at session start — if it fails, run `openkiln init`
+3. Never prompt interactively — fail with a clear error if input is missing
+4. Use `--json` when processing output programmatically
+5. Run `openkiln status` at session start — if it fails, run `openkiln init`
 
 ---
 
@@ -159,16 +148,21 @@ Before executing a workflow, confirm anything the CLI cannot discover:
 
 ## Conventions
 
-See `docs/architecture.md` for the full architecture reference.
+**Skills** are self-contained packages in `openkiln/skills/<name>/`.
+Each skill has: `__init__.py`, `skill.toml`, `SKILL.md`, `schema/`,
+and optionally `api.py`, `cli.py`, `queries.py`, `workflow.py`.
 
-**Adding a provider:** implement the Source, Transform, or Sink interface
-from `openkiln/core/`. Register in `openkiln/providers/__init__.py`.
-Add config keys to `.env.example`.
+**Workflow interfaces** are defined in `openkiln/core/` — `Source`,
+`Transform`, `Sink`. Skills implement these in `workflow.py` and
+declare them in `skill.toml`.
 
-**Adding a command:** add to the relevant file in `openkiln/commands/`.
-Register in `openkiln/cli.py`. Every command must support `--json`.
-Destructive commands must require `--apply`.
+**Adding a skill:** Use the [Skill Maker](https://github.com/OrbiSearch/openkiln-skill-maker)
+repo which provides the specification, templates, and validator.
 
-**Any change to a command, flag, construct, or provider must update
-the relevant module's docstring. AGENTS.md is not the source of truth
+**Adding a command:** Add to the relevant file in `openkiln/commands/`.
+Every command must support `--json`. Write operations must require `--apply`.
+Destructive commands must require `--yes`.
+
+**Any change to a command, flag, construct, or skill must update
+the relevant documentation. AGENTS.md is not the source of truth
 for implementation detail — the code is.**

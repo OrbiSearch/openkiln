@@ -180,7 +180,7 @@ def test_push_batch_size():
 
 def test_provider_batch_size():
     """Provider BATCH_SIZE matches CLI."""
-    from openkiln.providers.smartlead import BATCH_SIZE
+    from openkiln.skills.smartlead.workflow import BATCH_SIZE
     assert BATCH_SIZE == 400
 
 

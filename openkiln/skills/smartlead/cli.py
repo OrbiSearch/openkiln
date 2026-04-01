@@ -11,7 +11,7 @@ from rich import print as rprint
 
 from openkiln import db
 from openkiln.skills.smartlead.api import get_client, SmartleadError
-from openkiln.skills.smartlead import queries, CONTACT_TO_SMARTLEAD
+from openkiln.skills.smartlead import queries, CONTACT_TO_SMARTLEAD, INTERNAL_FIELDS
 
 app = typer.Typer(
     name="smartlead",
@@ -656,13 +656,6 @@ def accounts_add(
 PUSH_BATCH_SIZE = 400  # Smartlead API limit
 
 
-# Fields that are internal/metadata — never sent as custom fields
-_INTERNAL_FIELDS = {
-    "record_id", "company_record_id", "created_at", "updated_at",
-    "last_contacted_at", "lead_score", "segment", "tags",
-}
-
-
 def _map_contact_to_lead(contact: dict) -> dict:
     """Map a contact row to a Smartlead lead dict.
 
@@ -681,7 +674,7 @@ def _map_contact_to_lead(contact: dict) -> dict:
     # add unmapped fields as custom_fields
     custom: dict = {}
     for key, val in contact.items():
-        if key in mapped_crm_fields or key in _INTERNAL_FIELDS:
+        if key in mapped_crm_fields or key in INTERNAL_FIELDS:
             continue
         if val is not None and val != "":
             custom[key] = str(val)

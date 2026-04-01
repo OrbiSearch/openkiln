@@ -24,6 +24,12 @@ CONTACT_TO_SMARTLEAD = {
     "city": "location",
 }
 
+# Fields that are internal metadata — never sent to external APIs
+INTERNAL_FIELDS = {
+    "record_id", "company_record_id", "created_at", "updated_at",
+    "last_contacted_at", "lead_score", "segment", "tags",
+}
+
 # Smartlead campaign statuses
 CAMPAIGN_STATUSES = ["DRAFTED", "ACTIVE", "PAUSED", "STOPPED", "ARCHIVED"]
 

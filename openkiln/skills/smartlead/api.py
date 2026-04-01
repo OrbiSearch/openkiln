@@ -386,29 +386,6 @@ class SmartleadClient:
             end_date=end_date,
         )
 
-    # ── Webhooks ─────────────────────────────────────────────
-
-    def list_webhooks(self, *, client_id: str | None = None) -> Any:
-        """List all webhooks."""
-        return self._get("/webhooks", client_id=client_id)
-
-    def create_webhook(
-        self,
-        *,
-        name: str,
-        url: str,
-        events: list[str],
-        client_id: str | None = None,
-    ) -> Any:
-        """Create a webhook."""
-        body: dict[str, Any] = {
-            "name": name,
-            "webhook_url": url,
-            "event_types": events,
-        }
-        if client_id:
-            body["client_id"] = client_id
-        return self._post("/webhooks", body)
 
 
 # ── Factory ─────────────────────────────────────────────────

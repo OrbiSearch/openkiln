@@ -143,14 +143,25 @@ def campaigns(
 @app.command("stats")
 def stats(
     campaign_id: int = typer.Argument(..., help="Campaign ID."),
+    start_date: Optional[str] = typer.Option(
+        None, "--start-date", help="Start date (YYYY-MM-DD) for date-range analytics."
+    ),
+    end_date: Optional[str] = typer.Option(
+        None, "--end-date", help="End date (YYYY-MM-DD) for date-range analytics."
+    ),
     output_json: bool = typer.Option(
         False, "--json", help="Output as JSON."
     ),
 ) -> None:
-    """Show campaign analytics."""
+    """Show campaign analytics. Use --start-date/--end-date for date-range breakdown."""
     try:
         client = get_client()
-        analytics = client.get_campaign_analytics(campaign_id)
+        if start_date and end_date:
+            analytics = client.get_campaign_analytics_by_date(
+                campaign_id, start_date=start_date, end_date=end_date
+            )
+        else:
+            analytics = client.get_campaign_analytics(campaign_id)
     except SmartleadError as e:
         _handle_api_error(e)
 
@@ -1172,3 +1183,240 @@ def sync_touches(
     console.print(f"  Updated {len(updated_pushes)} lead push records")
     console.print(f"  Created {len(touches_to_create)} touches in {skill}")
     console.print()
+
+
+# ── Campaign Delete ──────────────────────────────────────────
+
+
+@app.command("delete")
+def delete(
+    campaign_id: int = typer.Argument(..., help="Campaign ID to delete."),
+    yes: bool = typer.Option(
+        False, "--yes", "-y", help="Skip confirmation prompt."
+    ),
+) -> None:
+    """Delete a campaign from Smartlead."""
+    if not yes:
+        confirm = typer.confirm(
+            f"Delete campaign {campaign_id}? This cannot be undone."
+        )
+        if not confirm:
+            raise typer.Abort()
+
+    try:
+        client = get_client()
+        client.delete_campaign(campaign_id)
+    except SmartleadError as e:
+        _handle_api_error(e)
+
+    console.print(
+        f"\n[green]\u2713[/green] Campaign {campaign_id} deleted.\n"
+    )
+
+
+# ── Accounts Remove ─────────────────────────────────────────
+
+
+@accounts_app.command("remove")
+def accounts_remove(
+    campaign_id: int = typer.Argument(..., help="Campaign ID."),
+    account_id: int = typer.Option(
+        ..., "--account-id", help="Email account ID to remove."
+    ),
+    output_json: bool = typer.Option(
+        False, "--json", help="Output as JSON."
+    ),
+) -> None:
+    """Remove an email account from a campaign."""
+    try:
+        client = get_client()
+        client.remove_email_account_from_campaign(campaign_id, account_id)
+    except SmartleadError as e:
+        _handle_api_error(e)
+
+    if output_json:
+        typer.echo(json.dumps({
+            "campaign_id": campaign_id,
+            "removed": account_id,
+        }, indent=2))
+        return
+
+    console.print(
+        f"\n[green]\u2713[/green] Removed email account {account_id} "
+        f"from campaign {campaign_id}.\n"
+    )
+
+
+# ── Lead Lookup ──────────────────────────────────────────────
+
+lead_app = typer.Typer(
+    help="Lead operations.",
+    no_args_is_help=True,
+)
+app.add_typer(lead_app, name="lead")
+
+
+@lead_app.command("find")
+def lead_find(
+    email: str = typer.Argument(..., help="Email address to search for."),
+    output_json: bool = typer.Option(
+        False, "--json", help="Output as JSON."
+    ),
+) -> None:
+    """Look up a lead by email address."""
+    try:
+        client = get_client()
+        data = client.get_lead_by_email(email)
+    except SmartleadError as e:
+        _handle_api_error(e)
+
+    if output_json:
+        typer.echo(json.dumps(data, indent=2))
+        return
+
+    if not data:
+        console.print(f"\n[dim]No lead found for {email}.[/dim]\n")
+        return
+
+    console.print(f"\n[bold]Lead: {email}[/bold]")
+    if isinstance(data, dict):
+        for key in ["id", "first_name", "last_name", "company_name", "status"]:
+            val = data.get(key)
+            if val is not None:
+                console.print(f"  {key}: {val}")
+    elif isinstance(data, list):
+        for entry in data:
+            if isinstance(entry, dict):
+                lead_id = entry.get("id", "?")
+                campaign = entry.get("campaign_name", entry.get("campaign_id", "?"))
+                status = entry.get("lead_status", entry.get("status", "?"))
+                console.print(f"  ID: {lead_id}, Campaign: {campaign}, Status: {status}")
+    console.print()
+
+
+@lead_app.command("thread")
+def lead_thread(
+    campaign_id: int = typer.Argument(..., help="Campaign ID."),
+    lead_id: int = typer.Argument(..., help="Lead ID."),
+    output_json: bool = typer.Option(
+        False, "--json", help="Output as JSON."
+    ),
+) -> None:
+    """View email thread history for a lead in a campaign."""
+    try:
+        client = get_client()
+        data = client.get_lead_message_history(campaign_id, lead_id)
+    except SmartleadError as e:
+        _handle_api_error(e)
+
+    if output_json:
+        typer.echo(json.dumps(data, indent=2))
+        return
+
+    if not data:
+        console.print(f"\n[dim]No messages found.[/dim]\n")
+        return
+
+    messages = data if isinstance(data, list) else [data]
+    console.print(f"\n[bold]Thread: campaign {campaign_id}, lead {lead_id}[/bold]\n")
+    for msg in messages:
+        if not isinstance(msg, dict):
+            continue
+        direction = msg.get("type", msg.get("direction", "?"))
+        subject = msg.get("subject", "")
+        time_str = msg.get("time", msg.get("sent_at", msg.get("created_at", "")))
+        console.print(f"  [{direction}] {time_str}")
+        if subject:
+            console.print(f"    Subject: {subject}")
+        body = msg.get("email_body", msg.get("body", ""))
+        if body:
+            # show first 200 chars of body
+            preview = body[:200].replace("\n", " ")
+            if len(body) > 200:
+                preview += "..."
+            console.print(f"    {preview}")
+        console.print()
+
+
+@lead_app.command("pause")
+def lead_pause(
+    campaign_id: int = typer.Argument(..., help="Campaign ID."),
+    lead_id: int = typer.Argument(..., help="Lead ID."),
+) -> None:
+    """Pause a lead in a campaign."""
+    try:
+        client = get_client()
+        client.update_lead_status(campaign_id, lead_id, "pause")
+    except SmartleadError as e:
+        _handle_api_error(e)
+
+    console.print(f"\n[yellow]\u23f8 Lead {lead_id} paused in campaign {campaign_id}.[/yellow]\n")
+
+
+@lead_app.command("resume")
+def lead_resume(
+    campaign_id: int = typer.Argument(..., help="Campaign ID."),
+    lead_id: int = typer.Argument(..., help="Lead ID."),
+) -> None:
+    """Resume a paused lead in a campaign."""
+    try:
+        client = get_client()
+        client.update_lead_status(campaign_id, lead_id, "resume")
+    except SmartleadError as e:
+        _handle_api_error(e)
+
+    console.print(f"\n[green]\u2713[/green] Lead {lead_id} resumed in campaign {campaign_id}.\n")
+
+
+@lead_app.command("unsubscribe")
+def lead_unsubscribe(
+    campaign_id: int = typer.Argument(..., help="Campaign ID."),
+    lead_id: int = typer.Argument(..., help="Lead ID."),
+) -> None:
+    """Unsubscribe a lead from a campaign."""
+    try:
+        client = get_client()
+        client.update_lead_status(campaign_id, lead_id, "unsubscribe")
+    except SmartleadError as e:
+        _handle_api_error(e)
+
+    console.print(f"\n[green]\u2713[/green] Lead {lead_id} unsubscribed from campaign {campaign_id}.\n")
+
+
+# ── Export ───────────────────────────────────────────────────
+
+
+@app.command("export")
+def export(
+    campaign_id: int = typer.Argument(..., help="Campaign ID."),
+    output_json: bool = typer.Option(
+        False, "--json", help="Output as JSON."
+    ),
+) -> None:
+    """Export all leads from a campaign."""
+    try:
+        client = get_client()
+        data = client.export_campaign_leads(campaign_id)
+    except SmartleadError as e:
+        _handle_api_error(e)
+
+    if output_json:
+        typer.echo(json.dumps(data, indent=2))
+        return
+
+    # CSV-style output
+    if isinstance(data, list) and data:
+        if isinstance(data[0], dict):
+            headers = list(data[0].keys())
+            console.print(",".join(headers))
+            for row in data:
+                console.print(",".join(str(row.get(h, "")) for h in headers))
+        else:
+            for row in data:
+                console.print(str(row))
+    else:
+        typer.echo(json.dumps(data, indent=2))
+
+
+# ── Date-Range Stats ─────────────────────────────────────────
+# Extend the existing stats command with --start-date / --end-date

@@ -8,7 +8,7 @@ help:
 	@echo "  make reset   — remove ~/.openkiln (destructive)"
 
 setup:
-	python -m venv .venv
+	python3 -m venv .venv
 	.venv/bin/pip install -e ".[dev]"
 	@echo ""
 	@echo "Setup complete. Activate with:"

@@ -254,3 +254,105 @@ def history(
     console.print()
     console.print(table)
     console.print()
+
+
+@app.command("components")
+def components(
+    output_json: bool = typer.Option(
+        False, "--json", help="Output as JSON."
+    ),
+) -> None:
+    """List available workflow components from installed skills."""
+    if not db.check_connection():
+        rprint(
+            "[red]\u2717 Database not found.[/red]\n"
+            "Run [bold]openkiln init[/bold] first."
+        )
+        raise typer.Exit(code=1)
+
+    import tomllib
+    from openkiln.commands.skill import SKILLS_DIR
+
+    with db.connection() as conn:
+        installed = conn.execute(
+            "SELECT skill_name FROM installed_skills"
+        ).fetchall()
+
+    sources: list[dict] = []
+    transforms: list[dict] = []
+    sinks: list[dict] = []
+
+    for row in installed:
+        skill_name = row["skill_name"]
+        toml_path = SKILLS_DIR / skill_name / "skill.toml"
+        if not toml_path.exists():
+            continue
+
+        with open(toml_path, "rb") as f:
+            manifest = tomllib.load(f)
+
+        for entry in manifest.get("skill", {}).get("provides", []):
+            item = {
+                "name": entry.get("name", ""),
+                "description": entry.get("description", ""),
+                "skill": skill_name,
+            }
+            cap_type = entry.get("type", "")
+            if cap_type == "source":
+                sources.append(item)
+            elif cap_type == "transform":
+                transforms.append(item)
+            elif cap_type == "sink":
+                sinks.append(item)
+
+    if output_json:
+        typer.echo(json.dumps({
+            "sources": sources,
+            "transforms": transforms,
+            "sinks": sinks,
+        }, indent=2))
+        return
+
+    if sources:
+        console.print("\n[bold]Sources[/bold]")
+        for s in sources:
+            console.print(f"  [cyan]{s['name']:<25}[/cyan] {s['description']}")
+
+    if transforms:
+        console.print("\n[bold]Transforms[/bold]")
+        for t in transforms:
+            console.print(f"  [cyan]{t['name']:<25}[/cyan] {t['description']}")
+
+    if sinks:
+        console.print("\n[bold]Sinks[/bold]")
+        for s in sinks:
+            console.print(f"  [cyan]{s['name']:<25}[/cyan] {s['description']}")
+
+    if not sources and not transforms and not sinks:
+        console.print(
+            "\n[dim]No workflow components found. "
+            "Install skills with workflow capabilities.[/dim]"
+        )
+
+    console.print()
+
+
+@app.command("guide")
+def guide() -> None:
+    """Show how to create workflows."""
+    guide_path = Path(__file__).parent.parent.parent / "WORKFLOWS.md"
+    if guide_path.exists():
+        console.print(
+            f"\n[bold]Workflow Guide:[/bold] {guide_path.resolve()}\n\n"
+            "Quick start:\n"
+            "  1. openkiln workflow components    — see available sources/transforms/sinks\n"
+            "  2. Write a YAML file              — see WORKFLOWS.md for format\n"
+            "  3. openkiln workflow validate <f>  — check your workflow\n"
+            "  4. openkiln workflow run <f>       — dry run\n"
+            "  5. openkiln workflow run <f> --apply — execute\n"
+        )
+    else:
+        console.print(
+            "\nSee WORKFLOWS.md in the OpenKiln repo for the full workflow guide.\n"
+            "https://github.com/OrbiSearch/openkiln/blob/main/WORKFLOWS.md\n"
+        )

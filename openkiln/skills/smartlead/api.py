@@ -214,7 +214,8 @@ class SmartleadClient:
     ) -> Any:
         """Save/replace sequences for a campaign."""
         return self._post(
-            f"/campaigns/{campaign_id}/sequences", sequences
+            f"/campaigns/{campaign_id}/sequences",
+            {"sequences": sequences},
         )
 
     # ── Email Accounts ───────────────────────────────────────
@@ -365,9 +366,18 @@ class SmartleadClient:
             f"/campaigns/{campaign_id}/leads/{lead_id}"
         )
 
-    def export_campaign_leads(self, campaign_id: int) -> Any:
-        """Export all leads in a campaign (CSV data)."""
-        return self._get(f"/campaigns/{campaign_id}/leads-export")
+    def export_campaign_leads(self, campaign_id: int) -> str:
+        """Export all leads in a campaign (returns CSV text)."""
+        url = f"{self._base_url}/campaigns/{campaign_id}/leads-export"
+        query = {"api_key": self._api_key}
+        self._throttle()
+        response = httpx.get(url, params=query, timeout=REQUEST_TIMEOUT)
+        self._last_request_at = time.monotonic()
+        if response.status_code >= 400:
+            raise SmartleadError(
+                _parse_error(response.text), response.status_code
+            )
+        return response.text
 
     # ── Analytics (global) ───────────────────────────────────
 

@@ -172,11 +172,17 @@ def stats(
     campaign_name = analytics.get("name", f"Campaign {campaign_id}")
     console.print(f"\n[bold]{campaign_name}[/bold]")
 
-    # engagement metrics
-    sent = analytics.get("unique_sent_count", 0) or 0
-    opened = analytics.get("unique_open_count", 0) or 0
-    clicked = analytics.get("unique_click_count", 0) or 0
-    replied = analytics.get("reply_count", 0) or 0
+    # engagement metrics — API may return strings or ints
+    def _int(val: object) -> int:
+        try:
+            return int(val)  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            return 0
+
+    sent = _int(analytics.get("unique_sent_count", 0))
+    opened = _int(analytics.get("unique_open_count", 0))
+    clicked = _int(analytics.get("unique_click_count", 0))
+    replied = _int(analytics.get("reply_count", 0))
 
     def _rate(n: int, total: int) -> str:
         if not total:
@@ -409,9 +415,31 @@ def duplicate(
         result = client.create_campaign(new_name)
         new_id = result.get("id")
 
-        # copy sequences
+        # copy sequences — normalize format for the save endpoint
         if source_sequences:
-            client.save_sequences(new_id, source_sequences)
+            normalized = []
+            for seq in source_sequences:
+                delay = seq.get("seq_delay_details", {})
+                # API returns delayInDays but expects delay_in_days
+                delay_days = (
+                    delay.get("delay_in_days")
+                    or delay.get("delayInDays")
+                    or 0
+                )
+                entry: dict = {
+                    "seq_number": seq.get("seq_number"),
+                    "seq_delay_details": {"delay_in_days": delay_days},
+                }
+                # copy subject/body from top-level or first variant
+                variants = seq.get("sequence_variants", [])
+                if variants:
+                    entry["subject"] = variants[0].get("subject", "")
+                    entry["email_body"] = variants[0].get("email_body", "")
+                elif seq.get("subject"):
+                    entry["subject"] = seq.get("subject", "")
+                    entry["email_body"] = seq.get("email_body", "")
+                normalized.append(entry)
+            client.save_sequences(new_id, normalized)
 
         # copy email accounts
         accounts_copied = False
@@ -530,7 +558,7 @@ def schedule(
         None, "--max-leads-per-day", help="Max new leads contacted per day."
     ),
     min_time_btw_emails: int = typer.Option(
-        2, "--min-gap", help="Min minutes between emails."
+        3, "--min-gap", help="Min minutes between emails (minimum 3)."
     ),
     output_json: bool = typer.Option(
         False, "--json", help="Output as JSON."
@@ -974,7 +1002,17 @@ def monitor(
         typer.echo(json.dumps(leads, indent=2))
         return
 
-    if not leads:
+    # API returns {"total_leads": N, "data": [...]} or a list
+    total_leads = None
+    if isinstance(leads, dict):
+        total_leads = leads.get("total_leads")
+        lead_entries = leads.get("data", [])
+    elif isinstance(leads, list):
+        lead_entries = leads
+    else:
+        lead_entries = []
+
+    if not lead_entries:
         console.print(f"\n[dim]No leads in campaign {campaign_id}.[/dim]\n")
         return
 
@@ -986,9 +1024,14 @@ def monitor(
     table.add_column("Clicked", justify="right")
     table.add_column("Replied", justify="right")
 
-    for lead in leads:
+    for entry in lead_entries:
+        # leads may be nested under "lead" key or flat
+        lead = entry.get("lead", entry) if isinstance(entry, dict) else entry
+        if not isinstance(lead, dict):
+            continue
+
         email = lead.get("email", "")
-        status = lead.get("lead_status", lead.get("status", ""))
+        status = entry.get("status", lead.get("lead_status", ""))
         sent = lead.get("sent_count", lead.get("email_sent_count", 0)) or 0
         opened = lead.get("open_count", lead.get("email_open_count", 0)) or 0
         clicked = lead.get("click_count", lead.get("email_click_count", 0)) or 0
@@ -996,7 +1039,7 @@ def monitor(
 
         table.add_row(
             email,
-            status,
+            str(status),
             str(sent),
             str(opened),
             str(clicked),
@@ -1005,8 +1048,10 @@ def monitor(
 
     console.print()
     console.print(table)
-    shown = len(leads)
-    if shown == limit:
+    shown = len(lead_entries)
+    if total_leads:
+        console.print(f"\n  Showing {shown} of {total_leads} leads.\n")
+    elif shown == limit:
         console.print(
             f"\n  Showing {shown} leads (offset {offset}). "
             f"Use --offset {offset + limit} to see more.\n"
@@ -1393,29 +1438,14 @@ def export(
         False, "--json", help="Output as JSON."
     ),
 ) -> None:
-    """Export all leads from a campaign."""
+    """Export all leads from a campaign as CSV."""
     try:
         client = get_client()
-        data = client.export_campaign_leads(campaign_id)
+        csv_text = client.export_campaign_leads(campaign_id)
     except SmartleadError as e:
         _handle_api_error(e)
 
-    if output_json:
-        typer.echo(json.dumps(data, indent=2))
-        return
-
-    # CSV-style output
-    if isinstance(data, list) and data:
-        if isinstance(data[0], dict):
-            headers = list(data[0].keys())
-            console.print(",".join(headers))
-            for row in data:
-                console.print(",".join(str(row.get(h, "")) for h in headers))
-        else:
-            for row in data:
-                console.print(str(row))
-    else:
-        typer.echo(json.dumps(data, indent=2))
+    typer.echo(csv_text)
 
 
 # ── Date-Range Stats ─────────────────────────────────────────

@@ -8,21 +8,29 @@ author = "OrbiSearch"
 type = "source"
 name = "crm.contacts"
 description = "Read contacts from crm.db"
+module = "openkiln.skills.crm.workflow"
+class = "CrmSource"
 
 [[skill.provides]]
 type = "source"
 name = "crm.companies"
 description = "Read companies from crm.db"
+module = "openkiln.skills.crm.workflow"
+class = "CrmSource"
 
 [[skill.provides]]
 type = "sink"
 name = "crm.contacts"
 description = "Write/update contacts in crm.db"
+module = "openkiln.skills.crm.workflow"
+class = "CrmSink"
 
 [[skill.provides]]
 type = "sink"
 name = "crm.companies"
 description = "Write/update companies in crm.db"
+module = "openkiln.skills.crm.workflow"
+class = "CrmSink"
 
 [skill.requires]
 skills = []

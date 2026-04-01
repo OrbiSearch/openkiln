@@ -8,6 +8,8 @@ author = "OrbiSearch"
 type = "transform"
 name = "orbisearch.validate"
 description = "Verify email deliverability"
+module = "openkiln.skills.orbisearch.workflow"
+class = "OrbiSearchTransform"
 
 [skill.requires]
 skills = []

@@ -8,6 +8,8 @@ author = "OrbiSearch"
 type = "sink"
 name = "smartlead.push"
 description = "Push contacts to a Smartlead campaign"
+module = "openkiln.skills.smartlead.workflow"
+class = "SmartleadSink"
 
 [skill.requires]
 skills = []

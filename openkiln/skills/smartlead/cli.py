@@ -526,7 +526,26 @@ def schedule(
     ),
 ) -> None:
     """Set the sending schedule for a campaign."""
-    days_list = [int(d.strip()) for d in days.split(",")]
+    import re
+
+    try:
+        days_list = [int(d.strip()) for d in days.split(",")]
+    except ValueError:
+        rprint("[red]\u2717 --days must be comma-separated numbers (0=Sun through 6=Sat).[/red]")
+        raise typer.Exit(code=1)
+
+    for d in days_list:
+        if d < 0 or d > 6:
+            rprint(f"[red]\u2717 Invalid day: {d}. Use 0=Sun through 6=Sat.[/red]")
+            raise typer.Exit(code=1)
+
+    hour_pattern = re.compile(r"^\d{1,2}:\d{2}$")
+    if not hour_pattern.match(start_hour):
+        rprint(f"[red]\u2717 Invalid --start-hour: {start_hour}. Use HH:MM format.[/red]")
+        raise typer.Exit(code=1)
+    if not hour_pattern.match(end_hour):
+        rprint(f"[red]\u2717 Invalid --end-hour: {end_hour}. Use HH:MM format.[/red]")
+        raise typer.Exit(code=1)
 
     try:
         client = get_client()
@@ -598,13 +617,39 @@ def accounts_add(
 PUSH_BATCH_SIZE = 400  # Smartlead API limit
 
 
+# Fields that are internal/metadata — never sent as custom fields
+_INTERNAL_FIELDS = {
+    "record_id", "company_record_id", "created_at", "updated_at",
+    "last_contacted_at", "lead_score", "segment", "tags",
+}
+
+
 def _map_contact_to_lead(contact: dict) -> dict:
-    """Map a CRM contact row to a Smartlead lead dict."""
+    """Map a contact row to a Smartlead lead dict.
+
+    Known fields map via CRM_TO_SMARTLEAD.
+    Remaining non-internal fields go into custom_fields
+    so they're available as template variables in sequences.
+    """
     lead: dict = {}
+    mapped_crm_fields = set(CRM_TO_SMARTLEAD.keys())
+
     for crm_field, sl_field in CRM_TO_SMARTLEAD.items():
         val = contact.get(crm_field)
         if val is not None and val != "":
             lead[sl_field] = val
+
+    # add unmapped fields as custom_fields
+    custom: dict = {}
+    for key, val in contact.items():
+        if key in mapped_crm_fields or key in _INTERNAL_FIELDS:
+            continue
+        if val is not None and val != "":
+            custom[key] = str(val)
+
+    if custom:
+        lead["custom_fields"] = custom
+
     return lead
 
 
@@ -688,6 +733,9 @@ def push(
     lead_status: Optional[str] = typer.Option(
         None, "--status", help="Filter by lead status."
     ),
+    force: bool = typer.Option(
+        False, "--force", help="Bypass dedup — push even if already pushed."
+    ),
     apply: bool = typer.Option(
         False, "--apply", help="Actually push. Default is dry run."
     ),
@@ -699,6 +747,7 @@ def push(
 
     Default is dry run — shows what would be pushed. Use --apply to push.
     Contacts already pushed to this campaign are skipped (dedup by email).
+    Use --force to bypass dedup and re-push all contacts.
     Reads contacts from the skill specified by --skill (default: crm).
     """
     # load contacts via db attach layer
@@ -716,13 +765,18 @@ def push(
     contacts_with_email = [c for c in contacts if c["email"]]
     skipped_no_email = len(contacts) - len(contacts_with_email)
 
-    # dedup against already-pushed contacts
-    already_pushed = queries.get_pushed_emails(campaign_id)
-    to_push = [
-        c for c in contacts_with_email
-        if c["email"].lower() not in {e.lower() for e in already_pushed}
-    ]
-    skipped_dedup = len(contacts_with_email) - len(to_push)
+    # dedup against already-pushed contacts (unless --force)
+    if force:
+        to_push = contacts_with_email
+        skipped_dedup = 0
+    else:
+        already_pushed = queries.get_pushed_emails(campaign_id)
+        already_pushed_lower = {e.lower() for e in already_pushed}
+        to_push = [
+            c for c in contacts_with_email
+            if c["email"].lower() not in already_pushed_lower
+        ]
+        skipped_dedup = len(contacts_with_email) - len(to_push)
 
     # summary
     summary = {
@@ -886,6 +940,12 @@ def stop(
 @app.command("monitor")
 def monitor(
     campaign_id: int = typer.Argument(..., help="Campaign ID."),
+    limit: int = typer.Option(
+        100, "--limit", help="Max leads to show."
+    ),
+    offset: int = typer.Option(
+        0, "--offset", help="Skip this many leads."
+    ),
     output_json: bool = typer.Option(
         False, "--json", help="Output as JSON."
     ),
@@ -893,7 +953,9 @@ def monitor(
     """Show lead-level engagement data for a campaign."""
     try:
         client = get_client()
-        leads = client.get_campaign_leads(campaign_id, limit=100)
+        leads = client.get_campaign_leads(
+            campaign_id, limit=limit, offset=offset
+        )
     except SmartleadError as e:
         _handle_api_error(e)
 
@@ -932,7 +994,14 @@ def monitor(
 
     console.print()
     console.print(table)
-    console.print(f"\n  Showing {len(leads)} leads.\n")
+    shown = len(leads)
+    if shown == limit:
+        console.print(
+            f"\n  Showing {shown} leads (offset {offset}). "
+            f"Use --offset {offset + limit} to see more.\n"
+        )
+    else:
+        console.print(f"\n  Showing {shown} leads.\n")
 
 
 # ── Engagement Sync ──────────────────────────────────────────

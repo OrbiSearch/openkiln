@@ -143,9 +143,11 @@ def test_crm_to_smartlead_mapping():
     assert lead["linkedin_profile"] == "https://linkedin.com/in/janesmith"
     assert lead["location"] == "Boston"
 
-    # fields not in CRM_TO_SMARTLEAD should not appear
-    assert "job_title" not in lead
-    assert "seniority" not in lead
+    # unmapped fields go to custom_fields
+    assert "job_title" not in lead  # not a top-level key
+    assert "seniority" not in lead  # not a top-level key
+    assert lead["custom_fields"]["job_title"] == "VP Engineering"
+    assert lead["custom_fields"]["seniority"] == "vp"
 
 
 def test_mapping_skips_empty_values():

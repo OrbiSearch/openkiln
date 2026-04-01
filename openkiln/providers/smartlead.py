@@ -15,7 +15,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from openkiln.skills.smartlead import CRM_TO_SMARTLEAD
 from openkiln.skills.smartlead.api import get_client
 from openkiln.skills.smartlead import queries
 
@@ -54,14 +53,9 @@ def push(rows: list[dict], *, campaign_id: int, **kwargs: Any) -> dict:
     for i in range(0, len(to_push), BATCH_SIZE):
         batch = to_push[i : i + BATCH_SIZE]
 
-        lead_list = []
-        for row in batch:
-            lead: dict = {}
-            for crm_field, sl_field in CRM_TO_SMARTLEAD.items():
-                val = row.get(crm_field)
-                if val is not None and val != "":
-                    lead[sl_field] = val
-            lead_list.append(lead)
+        from openkiln.skills.smartlead.cli import _map_contact_to_lead
+
+        lead_list = [_map_contact_to_lead(row) for row in batch]
 
         client.add_leads_to_campaign(campaign_id, lead_list)
 

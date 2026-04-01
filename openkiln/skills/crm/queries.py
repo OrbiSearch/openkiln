@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import sqlite3
-from pathlib import Path
 
 from openkiln import config
 
@@ -39,18 +38,17 @@ def list_contacts(
 
     if tag:
         where.append("(tags LIKE ? OR tags LIKE ? OR tags LIKE ? OR tags = ?)")
-        params.extend([
-            f"{tag},%",   # tag at start
-            f"%,{tag},%", # tag in middle
-            f"%,{tag}",   # tag at end
-            tag,          # tag is only value
-        ])
+        params.extend(
+            [
+                f"{tag},%",  # tag at start
+                f"%,{tag},%",  # tag in middle
+                f"%,{tag}",  # tag at end
+                tag,  # tag is only value
+            ]
+        )
 
     if not_contacted_since is not None:
-        where.append(
-            "(last_contacted_at IS NULL OR "
-            "last_contacted_at < datetime('now', ?))"
-        )
+        where.append("(last_contacted_at IS NULL OR last_contacted_at < datetime('now', ?))")
         params.append(f"-{not_contacted_since} days")
 
     sql = "SELECT * FROM contacts"
@@ -84,10 +82,7 @@ def count_contacts(
         params.extend([f"{tag},%", f"%,{tag},%", f"%,{tag}", tag])
 
     if not_contacted_since is not None:
-        where.append(
-            "(last_contacted_at IS NULL OR "
-            "last_contacted_at < datetime('now', ?))"
-        )
+        where.append("(last_contacted_at IS NULL OR last_contacted_at < datetime('now', ?))")
         params.append(f"-{not_contacted_since} days")
 
     sql = "SELECT COUNT(*) FROM contacts"
@@ -163,15 +158,15 @@ def tag_contacts(
         params.append(filter_segment)
 
     if filter_tag:
-        where.append(
-            "(tags LIKE ? OR tags LIKE ? OR tags LIKE ? OR tags = ?)"
+        where.append("(tags LIKE ? OR tags LIKE ? OR tags LIKE ? OR tags = ?)")
+        params.extend(
+            [
+                f"{filter_tag},%",
+                f"%,{filter_tag},%",
+                f"%,{filter_tag}",
+                filter_tag,
+            ]
         )
-        params.extend([
-            f"{filter_tag},%",
-            f"%,{filter_tag},%",
-            f"%,{filter_tag}",
-            filter_tag,
-        ])
 
     where_sql = " WHERE " + " AND ".join(where) if where else ""
 
@@ -186,10 +181,7 @@ def tag_contacts(
 
         if add_tag is not None:
             # fetch current tags and append if not already present
-            rows = conn.execute(
-                f"SELECT record_id, tags FROM contacts{where_sql}",
-                params
-            ).fetchall()
+            rows = conn.execute(f"SELECT record_id, tags FROM contacts{where_sql}", params).fetchall()
             for row in rows:
                 current = row["tags"] or ""
                 existing = [t.strip() for t in current.split(",") if t.strip()]
@@ -197,16 +189,12 @@ def tag_contacts(
                     existing.append(add_tag)
                     new_tags = ",".join(existing)
                     conn.execute(
-                        "UPDATE contacts SET tags = ? WHERE record_id = ?",
-                        (new_tags, row["record_id"])
+                        "UPDATE contacts SET tags = ? WHERE record_id = ?", (new_tags, row["record_id"])
                     )
                     affected += 1
 
         if remove_tag is not None:
-            rows = conn.execute(
-                f"SELECT record_id, tags FROM contacts{where_sql}",
-                params
-            ).fetchall()
+            rows = conn.execute(f"SELECT record_id, tags FROM contacts{where_sql}", params).fetchall()
             for row in rows:
                 current = row["tags"] or ""
                 existing = [t.strip() for t in current.split(",") if t.strip()]
@@ -214,8 +202,7 @@ def tag_contacts(
                     existing.remove(remove_tag)
                     new_tags = ",".join(existing)
                     conn.execute(
-                        "UPDATE contacts SET tags = ? WHERE record_id = ?",
-                        (new_tags, row["record_id"])
+                        "UPDATE contacts SET tags = ? WHERE record_id = ?", (new_tags, row["record_id"])
                     )
                     affected += 1
 
@@ -232,9 +219,7 @@ def get_stats() -> dict:
     """
     conn = _crm_connection()
     try:
-        total_contacts = conn.execute(
-            "SELECT COUNT(*) FROM contacts"
-        ).fetchone()[0]
+        total_contacts = conn.execute("SELECT COUNT(*) FROM contacts").fetchone()[0]
 
         contacts_by_segment = conn.execute(
             """
@@ -247,9 +232,7 @@ def get_stats() -> dict:
             """
         ).fetchall()
 
-        total_companies = conn.execute(
-            "SELECT COUNT(*) FROM companies"
-        ).fetchone()[0]
+        total_companies = conn.execute("SELECT COUNT(*) FROM companies").fetchone()[0]
 
         companies_by_segment = conn.execute(
             """
@@ -262,23 +245,19 @@ def get_stats() -> dict:
             """
         ).fetchall()
 
-        total_touches = conn.execute(
-            "SELECT COUNT(*) FROM touches"
-        ).fetchone()[0]
+        total_touches = conn.execute("SELECT COUNT(*) FROM touches").fetchone()[0]
 
         return {
             "contacts": {
                 "total": total_contacts,
                 "by_segment": [
-                    {"segment": row["seg"], "count": row["count"]}
-                    for row in contacts_by_segment
+                    {"segment": row["seg"], "count": row["count"]} for row in contacts_by_segment
                 ],
             },
             "companies": {
                 "total": total_companies,
                 "by_segment": [
-                    {"segment": row["seg"], "count": row["count"]}
-                    for row in companies_by_segment
+                    {"segment": row["seg"], "count": row["count"]} for row in companies_by_segment
                 ],
             },
             "touches": {
@@ -308,7 +287,7 @@ def log_touch(
               (record_id, channel, direction, note, campaign_id)
             VALUES (?, ?, ?, ?, ?)
             """,
-            (record_id, channel, direction, note, campaign_id)
+            (record_id, channel, direction, note, campaign_id),
         )
         touch_id = cursor.lastrowid
 
@@ -319,7 +298,7 @@ def log_touch(
             SET last_contacted_at = datetime('now')
             WHERE record_id = ?
             """,
-            (record_id,)
+            (record_id,),
         )
         # also try companies (record may be a company)
         conn.execute(
@@ -328,7 +307,7 @@ def log_touch(
             SET last_contacted_at = datetime('now')
             WHERE record_id = ?
             """,
-            (record_id,)
+            (record_id,),
         )
 
         conn.commit()
@@ -359,19 +338,16 @@ def link_contacts_to_companies(
         # get all contacts
         if overwrite:
             contacts = conn.execute(
-                "SELECT record_id, email, company_name, company_record_id "
-                "FROM contacts"
+                "SELECT record_id, email, company_name, company_record_id FROM contacts"
             ).fetchall()
         else:
             contacts = conn.execute(
-                "SELECT record_id, email, company_name, company_record_id "
-                "FROM contacts"
+                "SELECT record_id, email, company_name, company_record_id FROM contacts"
             ).fetchall()
 
         # get all companies indexed by match field
         companies = conn.execute(
-            f"SELECT record_id, {company_field} FROM companies "
-            f"WHERE {company_field} IS NOT NULL"
+            f"SELECT record_id, {company_field} FROM companies WHERE {company_field} IS NOT NULL"
         ).fetchall()
         company_lookup: dict[str, int] = {
             row[company_field].strip().lower(): row["record_id"]
@@ -412,9 +388,8 @@ def link_contacts_to_companies(
 
             if not dry_run:
                 conn.execute(
-                    "UPDATE contacts SET company_record_id = ? "
-                    "WHERE record_id = ?",
-                    (company_id, contact["record_id"])
+                    "UPDATE contacts SET company_record_id = ? WHERE record_id = ?",
+                    (company_id, contact["record_id"]),
                 )
 
         if not dry_run:
@@ -440,9 +415,8 @@ def link_contact_to_company(
     conn = _crm_connection()
     try:
         conn.execute(
-            "UPDATE contacts SET company_record_id = ? "
-            "WHERE record_id = ?",
-            (company_record_id, contact_record_id)
+            "UPDATE contacts SET company_record_id = ? WHERE record_id = ?",
+            (company_record_id, contact_record_id),
         )
         conn.commit()
         return True
@@ -452,6 +426,7 @@ def link_contact_to_company(
 
 # ── lists ─────────────────────────────────────────────────────
 
+
 def create_list(name: str, description: str | None = None) -> int:
     """
     Creates a new named list. Returns the list id.
@@ -459,15 +434,10 @@ def create_list(name: str, description: str | None = None) -> int:
     """
     conn = _crm_connection()
     try:
-        existing = conn.execute(
-            "SELECT id FROM lists WHERE name = ?", (name,)
-        ).fetchone()
+        existing = conn.execute("SELECT id FROM lists WHERE name = ?", (name,)).fetchone()
         if existing:
             raise ValueError(f"List '{name}' already exists.")
-        cursor = conn.execute(
-            "INSERT INTO lists (name, description) VALUES (?, ?)",
-            (name, description)
-        )
+        cursor = conn.execute("INSERT INTO lists (name, description) VALUES (?, ?)", (name, description))
         conn.commit()
         return cursor.lastrowid
     finally:
@@ -502,17 +472,15 @@ def add_to_list(
     """
     conn = _crm_connection()
     try:
-        lst = conn.execute(
-            "SELECT id FROM lists WHERE name = ?", (list_name,)
-        ).fetchone()
+        lst = conn.execute("SELECT id FROM lists WHERE name = ?", (list_name,)).fetchone()
         if not lst:
             raise ValueError(f"List '{list_name}' does not exist.")
 
         list_id = lst[0]
         existing = {
-            row[0] for row in conn.execute(
-                "SELECT record_id FROM list_members WHERE list_id = ?",
-                (list_id,)
+            row[0]
+            for row in conn.execute(
+                "SELECT record_id FROM list_members WHERE list_id = ?", (list_id,)
             ).fetchall()
         }
 
@@ -521,9 +489,8 @@ def add_to_list(
 
         if to_add:
             conn.executemany(
-                "INSERT INTO list_members (list_id, record_id) "
-                "VALUES (?, ?)",
-                [(list_id, rid) for rid in to_add]
+                "INSERT INTO list_members (list_id, record_id) VALUES (?, ?)",
+                [(list_id, rid) for rid in to_add],
             )
             conn.commit()
 
@@ -539,18 +506,15 @@ def remove_from_list(list_name: str, record_ids: list[int]) -> int:
     """
     conn = _crm_connection()
     try:
-        lst = conn.execute(
-            "SELECT id FROM lists WHERE name = ?", (list_name,)
-        ).fetchone()
+        lst = conn.execute("SELECT id FROM lists WHERE name = ?", (list_name,)).fetchone()
         if not lst:
             raise ValueError(f"List '{list_name}' does not exist.")
 
         list_id = lst[0]
         placeholders = ",".join(["?"] * len(record_ids))
         cursor = conn.execute(
-            f"DELETE FROM list_members "
-            f"WHERE list_id = ? AND record_id IN ({placeholders})",
-            [list_id] + record_ids
+            f"DELETE FROM list_members WHERE list_id = ? AND record_id IN ({placeholders})",
+            [list_id] + record_ids,
         )
         conn.commit()
         return cursor.rowcount
@@ -566,20 +530,21 @@ def get_list_members(
     """Returns contacts in a named list."""
     conn = _crm_connection()
     try:
-        lst = conn.execute(
-            "SELECT id FROM lists WHERE name = ?", (list_name,)
-        ).fetchone()
+        lst = conn.execute("SELECT id FROM lists WHERE name = ?", (list_name,)).fetchone()
         if not lst:
             raise ValueError(f"List '{list_name}' does not exist.")
 
         list_id = lst[0]
-        return conn.execute("""
+        return conn.execute(
+            """
             SELECT c.* FROM contacts c
             JOIN list_members lm ON lm.record_id = c.record_id
             WHERE lm.list_id = ?
             ORDER BY lm.added_at DESC
             LIMIT ? OFFSET ?
-        """, (list_id, limit, offset)).fetchall()
+        """,
+            (list_id, limit, offset),
+        ).fetchall()
     finally:
         conn.close()
 
@@ -591,16 +556,12 @@ def delete_list(list_name: str) -> bool:
     """
     conn = _crm_connection()
     try:
-        lst = conn.execute(
-            "SELECT id FROM lists WHERE name = ?", (list_name,)
-        ).fetchone()
+        lst = conn.execute("SELECT id FROM lists WHERE name = ?", (list_name,)).fetchone()
         if not lst:
             return False
 
         list_id = lst[0]
-        conn.execute(
-            "DELETE FROM list_members WHERE list_id = ?", (list_id,)
-        )
+        conn.execute("DELETE FROM list_members WHERE list_id = ?", (list_id,))
         conn.execute("DELETE FROM lists WHERE id = ?", (list_id,))
         conn.commit()
         return True

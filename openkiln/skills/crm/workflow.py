@@ -4,21 +4,37 @@ CRM workflow interfaces — Source and Sink implementations.
 CrmSource reads contacts or companies from crm.db.
 CrmSink updates records in crm.db.
 """
+
 from __future__ import annotations
 
 from typing import Any, Iterator
 
 from openkiln import db
-from openkiln.core import Source, Sink
+from openkiln.core import Sink, Source
 
 # Columns that exist in the contacts table and can be updated.
 # The sink only writes these — transform-added fields are ignored.
 _CONTACT_COLUMNS = {
-    "first_name", "last_name", "full_name", "email", "phone",
-    "linkedin_url", "company_name", "job_title", "department",
-    "seniority", "city", "country", "timezone", "segment", "tags",
-    "lead_score", "source", "last_contacted_at",
-    "lifecycle_stage", "lead_status",
+    "first_name",
+    "last_name",
+    "full_name",
+    "email",
+    "phone",
+    "linkedin_url",
+    "company_name",
+    "job_title",
+    "department",
+    "seniority",
+    "city",
+    "country",
+    "timezone",
+    "segment",
+    "tags",
+    "lead_score",
+    "source",
+    "last_contacted_at",
+    "lifecycle_stage",
+    "lead_status",
 }
 
 
@@ -52,9 +68,7 @@ class CrmSource(Source):
 
         if filters.get("tag"):
             tag = filters["tag"]
-            where.append(
-                "(tags LIKE ? OR tags LIKE ? OR tags LIKE ? OR tags = ?)"
-            )
+            where.append("(tags LIKE ? OR tags LIKE ? OR tags LIKE ? OR tags = ?)")
             params.extend([f"{tag},%", f"%,{tag},%", f"%,{tag}", tag])
 
         if filters.get("lifecycle_stage"):
@@ -66,9 +80,7 @@ class CrmSource(Source):
             params.append(filters["lead_status"])
 
         if filters.get("record_status"):
-            where.append(
-                "record_id IN (SELECT id FROM records WHERE record_status = ?)"
-            )
+            where.append("record_id IN (SELECT id FROM records WHERE record_status = ?)")
             params.append(filters["record_status"])
 
         sql = f"SELECT * FROM crm.{table}"
@@ -125,8 +137,7 @@ class CrmSink(Sink):
                 values.append(record_id)
 
                 conn.execute(
-                    f"UPDATE crm.contacts SET {', '.join(set_parts)} "
-                    f"WHERE record_id = ?",
+                    f"UPDATE crm.contacts SET {', '.join(set_parts)} WHERE record_id = ?",
                     values,
                 )
                 updated += 1

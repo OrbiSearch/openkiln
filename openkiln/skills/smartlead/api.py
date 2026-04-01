@@ -10,6 +10,7 @@ Usage:
     client = get_client()
     campaigns = client.list_campaigns()
 """
+
 from __future__ import annotations
 
 import os
@@ -39,6 +40,7 @@ def _parse_error(body: str) -> str:
     """Extract a human-readable message from a Smartlead error response."""
     try:
         import json as _json
+
         parsed = _json.loads(body)
         return parsed.get("message") or parsed.get("error") or body[:200]
     except Exception:
@@ -100,9 +102,7 @@ class SmartleadClient:
                     if attempt < MAX_RETRIES:
                         time.sleep(2.0 * (attempt + 1))
                         continue
-                    raise SmartleadError(
-                        "Rate limited by Smartlead API", 429
-                    )
+                    raise SmartleadError("Rate limited by Smartlead API", 429)
 
                 if response.status_code >= 500:
                     if attempt < MAX_RETRIES:
@@ -153,9 +153,7 @@ class SmartleadClient:
 
     # ── Campaigns ────────────────────────────────────────────
 
-    def list_campaigns(
-        self, *, client_id: int | None = None, include_tags: bool = False
-    ) -> list[dict]:
+    def list_campaigns(self, *, client_id: int | None = None, include_tags: bool = False) -> list[dict]:
         """List all campaigns."""
         return self._get(
             "/campaigns/",
@@ -209,9 +207,7 @@ class SmartleadClient:
         """Get email sequences for a campaign."""
         return self._get(f"/campaigns/{campaign_id}/sequences")
 
-    def save_sequences(
-        self, campaign_id: int, sequences: list[dict]
-    ) -> Any:
+    def save_sequences(self, campaign_id: int, sequences: list[dict]) -> Any:
         """Save/replace sequences for a campaign."""
         return self._post(
             f"/campaigns/{campaign_id}/sequences",
@@ -220,30 +216,22 @@ class SmartleadClient:
 
     # ── Email Accounts ───────────────────────────────────────
 
-    def list_email_accounts(
-        self, *, offset: int = 0, limit: int = 100
-    ) -> list[dict]:
+    def list_email_accounts(self, *, offset: int = 0, limit: int = 100) -> list[dict]:
         """List all email accounts."""
-        return self._get(
-            "/email-accounts/", offset=offset, limit=limit
-        )
+        return self._get("/email-accounts/", offset=offset, limit=limit)
 
     def get_campaign_email_accounts(self, campaign_id: int) -> list[dict]:
         """List email accounts assigned to a campaign."""
         return self._get(f"/campaigns/{campaign_id}/email-accounts")
 
-    def add_email_accounts_to_campaign(
-        self, campaign_id: int, email_account_ids: list[int]
-    ) -> Any:
+    def add_email_accounts_to_campaign(self, campaign_id: int, email_account_ids: list[int]) -> Any:
         """Add email accounts to a campaign."""
         return self._post(
             f"/campaigns/{campaign_id}/email-accounts",
             {"email_account_ids": email_account_ids},
         )
 
-    def remove_email_account_from_campaign(
-        self, campaign_id: int, email_account_id: int
-    ) -> Any:
+    def remove_email_account_from_campaign(self, campaign_id: int, email_account_id: int) -> Any:
         """Remove an email account from a campaign."""
         return self._request(
             "DELETE",
@@ -253,22 +241,16 @@ class SmartleadClient:
 
     # ── Campaign Management ──────────────────────────────────
 
-    def create_campaign(
-        self, name: str, *, client_id: int | None = None
-    ) -> dict:
+    def create_campaign(self, name: str, *, client_id: int | None = None) -> dict:
         """Create a new campaign (DRAFTED status)."""
         body: dict[str, Any] = {"name": name}
         if client_id is not None:
             body["client_id"] = client_id
         return self._post("/campaigns/create", body)
 
-    def update_campaign_status(
-        self, campaign_id: int, status: str
-    ) -> Any:
+    def update_campaign_status(self, campaign_id: int, status: str) -> Any:
         """Update campaign status (ACTIVE, PAUSED, STOPPED, START)."""
-        return self._post(
-            f"/campaigns/{campaign_id}/status", {"status": status}
-        )
+        return self._post(f"/campaigns/{campaign_id}/status", {"status": status})
 
     def update_campaign_schedule(
         self,
@@ -293,9 +275,7 @@ class SmartleadClient:
             body["max_new_leads_per_day"] = max_leads_per_day
         return self._post(f"/campaigns/{campaign_id}/schedule", body)
 
-    def update_campaign_settings(
-        self, campaign_id: int, settings: dict
-    ) -> Any:
+    def update_campaign_settings(self, campaign_id: int, settings: dict) -> Any:
         """Update campaign settings (track_settings, stop_lead_settings, etc)."""
         return self._post(f"/campaigns/{campaign_id}/settings", settings)
 
@@ -342,29 +322,17 @@ class SmartleadClient:
         """Find a lead by email address."""
         return self._get("/leads/", email=email)
 
-    def get_lead_message_history(
-        self, campaign_id: int, lead_id: int
-    ) -> Any:
+    def get_lead_message_history(self, campaign_id: int, lead_id: int) -> Any:
         """Get full email thread history for a lead."""
-        return self._get(
-            f"/campaigns/{campaign_id}/leads/{lead_id}/message-history"
-        )
+        return self._get(f"/campaigns/{campaign_id}/leads/{lead_id}/message-history")
 
-    def update_lead_status(
-        self, campaign_id: int, lead_id: int, action: str
-    ) -> Any:
+    def update_lead_status(self, campaign_id: int, lead_id: int, action: str) -> Any:
         """Pause, resume, or unsubscribe a lead."""
-        return self._post(
-            f"/campaigns/{campaign_id}/leads/{lead_id}/{action}"
-        )
+        return self._post(f"/campaigns/{campaign_id}/leads/{lead_id}/{action}")
 
-    def delete_lead_from_campaign(
-        self, campaign_id: int, lead_id: int
-    ) -> Any:
+    def delete_lead_from_campaign(self, campaign_id: int, lead_id: int) -> Any:
         """Delete a lead from a campaign."""
-        return self._delete(
-            f"/campaigns/{campaign_id}/leads/{lead_id}"
-        )
+        return self._delete(f"/campaigns/{campaign_id}/leads/{lead_id}")
 
     def export_campaign_leads(self, campaign_id: int) -> str:
         """Export all leads in a campaign (returns CSV text)."""
@@ -374,9 +342,7 @@ class SmartleadClient:
         response = httpx.get(url, params=query, timeout=REQUEST_TIMEOUT)
         self._last_request_at = time.monotonic()
         if response.status_code >= 400:
-            raise SmartleadError(
-                _parse_error(response.text), response.status_code
-            )
+            raise SmartleadError(_parse_error(response.text), response.status_code)
         return response.text
 
     # ── Analytics (global) ───────────────────────────────────
@@ -395,7 +361,6 @@ class SmartleadClient:
             start_date=start_date,
             end_date=end_date,
         )
-
 
 
 # ── Factory ─────────────────────────────────────────────────

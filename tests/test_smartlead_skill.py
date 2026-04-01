@@ -4,6 +4,7 @@ Tests for the Smartlead skill.
 Covers: skill install, schema, field mapping, batch splitting,
 queries, and provider sink.
 """
+
 from __future__ import annotations
 
 import json
@@ -11,8 +12,8 @@ import sqlite3
 
 from typer.testing import CliRunner
 
-from openkiln.cli import app
 from openkiln import db
+from openkiln.cli import app
 
 runner = CliRunner()
 
@@ -37,8 +38,7 @@ def test_skill_install_smartlead(openkiln_home):
 
     with db.connection() as conn:
         row = conn.execute(
-            "SELECT skill_name FROM installed_skills "
-            "WHERE skill_name = 'smartlead'"
+            "SELECT skill_name FROM installed_skills WHERE skill_name = 'smartlead'"
         ).fetchone()
     assert row is not None
 
@@ -72,10 +72,7 @@ def test_schema_creates_all_tables(openkiln_home):
     db_path = openkiln_home / "skills" / "smartlead.db"
     conn = sqlite3.connect(db_path)
     tables = {
-        row[0]
-        for row in conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table'"
-        ).fetchall()
+        row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
     }
     conn.close()
 
@@ -94,8 +91,7 @@ def test_lead_pushes_unique_constraint(openkiln_home):
     conn = sqlite3.connect(db_path)
 
     conn.execute(
-        "INSERT INTO lead_pushes (record_id, campaign_id, email) "
-        "VALUES (1, 100, 'a@example.com')"
+        "INSERT INTO lead_pushes (record_id, campaign_id, email) VALUES (1, 100, 'a@example.com')"
     )
     conn.commit()
 
@@ -103,8 +99,7 @@ def test_lead_pushes_unique_constraint(openkiln_home):
     # conflict (upsert handles this in production code)
     try:
         conn.execute(
-            "INSERT INTO lead_pushes (record_id, campaign_id, email) "
-            "VALUES (1, 100, 'a@example.com')"
+            "INSERT INTO lead_pushes (record_id, campaign_id, email) VALUES (1, 100, 'a@example.com')"
         )
         conn.commit()
         assert False, "Expected UNIQUE constraint violation"
@@ -175,12 +170,14 @@ def test_mapping_skips_empty_values():
 def test_push_batch_size():
     """PUSH_BATCH_SIZE is 400 (Smartlead API limit)."""
     from openkiln.skills.smartlead.cli import PUSH_BATCH_SIZE
+
     assert PUSH_BATCH_SIZE == 400
 
 
 def test_provider_batch_size():
     """Provider BATCH_SIZE matches CLI."""
     from openkiln.skills.smartlead.workflow import BATCH_SIZE
+
     assert BATCH_SIZE == 400
 
 
@@ -195,11 +192,13 @@ def test_queries_upsert_campaign(openkiln_home):
     runner.invoke(app, ["skill", "install", "smartlead"])
 
     # insert
-    queries.upsert_campaign({
-        "id": 42,
-        "name": "Test Campaign",
-        "status": "DRAFTED",
-    })
+    queries.upsert_campaign(
+        {
+            "id": 42,
+            "name": "Test Campaign",
+            "status": "DRAFTED",
+        }
+    )
 
     camp = queries.get_campaign(42)
     assert camp is not None
@@ -207,11 +206,13 @@ def test_queries_upsert_campaign(openkiln_home):
     assert camp["status"] == "DRAFTED"
 
     # update
-    queries.upsert_campaign({
-        "id": 42,
-        "name": "Updated Campaign",
-        "status": "ACTIVE",
-    })
+    queries.upsert_campaign(
+        {
+            "id": 42,
+            "name": "Updated Campaign",
+            "status": "ACTIVE",
+        }
+    )
 
     camp = queries.get_campaign(42)
     assert camp["name"] == "Updated Campaign"
@@ -281,12 +282,15 @@ def test_queries_campaign_stats(openkiln_home):
     runner.invoke(app, ["init"])
     runner.invoke(app, ["skill", "install", "smartlead"])
 
-    queries.insert_campaign_stats(42, {
-        "unique_sent_count": 100,
-        "unique_open_count": 40,
-        "reply_count": 5,
-        "campaign_lead_stats": {"total": 100, "notStarted": 50},
-    })
+    queries.insert_campaign_stats(
+        42,
+        {
+            "unique_sent_count": 100,
+            "unique_open_count": 40,
+            "reply_count": 5,
+            "campaign_lead_stats": {"total": 100, "notStarted": 50},
+        },
+    )
 
     stats = queries.get_latest_stats(42)
     assert stats is not None
@@ -302,12 +306,12 @@ def test_queries_campaign_stats(openkiln_home):
 def test_init_exports():
     """__init__.py exports expected constants."""
     from openkiln.skills.smartlead import (
-        __version__,
-        LEAD_COLUMNS,
-        CONTACT_TO_SMARTLEAD,
         CAMPAIGN_STATUSES,
-        SUPPORTED_TYPES,
+        CONTACT_TO_SMARTLEAD,
         DEDUP_KEYS,
+        LEAD_COLUMNS,
+        SUPPORTED_TYPES,
+        __version__,
     )
 
     assert __version__ == "0.1.0"
@@ -332,8 +336,9 @@ def test_api_client_construction():
 
 def test_api_client_no_key_error():
     """get_client raises SmartleadError when no key is configured."""
-    from openkiln.skills.smartlead.api import get_client, SmartleadError
     import os
+
+    from openkiln.skills.smartlead.api import SmartleadError, get_client
 
     # make sure env var is not set
     old = os.environ.pop("SMARTLEAD_API_KEY", None)

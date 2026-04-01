@@ -1,12 +1,10 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 import typer
-from rich.console import Console
-from rich.table import Table
 from rich import print as rprint
+from rich.console import Console
 
 from openkiln import config, db
 
@@ -14,9 +12,7 @@ console = Console()
 
 
 def run(
-    output_json: bool = typer.Option(
-        False, "--json", help="Output as JSON for agent consumption."
-    ),
+    output_json: bool = typer.Option(False, "--json", help="Output as JSON for agent consumption."),
 ) -> None:
     """
     Show a summary of the current OpenKiln installation.
@@ -31,14 +27,12 @@ def run(
 
     if not connected:
         if output_json:
-            typer.echo(json.dumps({
-                "connected": False,
-                "error": "Database not found. Run: openkiln init"
-            }))
+            typer.echo(
+                json.dumps({"connected": False, "error": "Database not found. Run: openkiln init"})
+            )
         else:
             rprint(
-                "[red]✗ Database not found.[/red]\n"
-                "Run [bold]openkiln init[/bold] to set up OpenKiln."
+                "[red]✗ Database not found.[/red]\nRun [bold]openkiln init[/bold] to set up OpenKiln."
             )
         raise typer.Exit(code=1)
 
@@ -71,24 +65,29 @@ def run(
 
     # json output for agents
     if output_json:
-        typer.echo(json.dumps({
-            "connected": True,
-            "core_db": str(cfg.core_db),
-            "records": {row["type"]: row["count"] for row in record_rows},
-            "skills": [
+        typer.echo(
+            json.dumps(
                 {
-                    "name": row["skill_name"],
-                    "version": row["skill_version"],
-                    "installed_at": row["installed_at"],
+                    "connected": True,
+                    "core_db": str(cfg.core_db),
+                    "records": {row["type"]: row["count"] for row in record_rows},
+                    "skills": [
+                        {
+                            "name": row["skill_name"],
+                            "version": row["skill_version"],
+                            "installed_at": row["installed_at"],
+                        }
+                        for row in skill_rows
+                    ],
+                    "last_workflow_run": dict(last_run) if last_run else None,
                 }
-                for row in skill_rows
-            ],
-            "last_workflow_run": dict(last_run) if last_run else None,
-        }))
+            )
+        )
         return
 
     # human-readable output
     from importlib.metadata import version
+
     try:
         ver = version("openkiln")
     except Exception:
@@ -98,9 +97,7 @@ def run(
     console.print("─" * 40)
 
     # database
-    console.print(
-        f"[green]✓[/green] Database   {cfg.core_db}"
-    )
+    console.print(f"[green]✓[/green] Database   {cfg.core_db}")
     console.print()
 
     # records
@@ -116,15 +113,10 @@ def run(
     if skill_rows:
         console.print("[bold]Skills[/bold]")
         for row in skill_rows:
-            console.print(
-                f"  [green]✓[/green] {row['skill_name']:<18} "
-                f"v{row['skill_version']}"
-            )
+            console.print(f"  [green]✓[/green] {row['skill_name']:<18} v{row['skill_version']}")
     else:
         console.print("[dim]Skills       none installed[/dim]")
-        console.print(
-            "  Run: [bold]openkiln skill install crm[/bold]"
-        )
+        console.print("  Run: [bold]openkiln skill install crm[/bold]")
     console.print()
 
     # last workflow run

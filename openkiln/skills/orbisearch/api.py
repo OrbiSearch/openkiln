@@ -2,6 +2,7 @@
 OrbiSearch API client.
 API docs: https://api.orbisearch.com/docs
 """
+
 from __future__ import annotations
 
 import os
@@ -68,13 +69,13 @@ class OrbiSearchClient:
                 )
 
                 if resp.status_code == 429:
-                    wait = min(2 ** attempt, 30)
+                    wait = min(2**attempt, 30)
                     time.sleep(wait)
                     last_err = OrbiSearchError("Rate limited", status_code=429)
                     continue
 
                 if resp.status_code >= 500:
-                    wait = min(2 ** attempt, 30)
+                    wait = min(2**attempt, 30)
                     time.sleep(wait)
                     last_err = OrbiSearchError(
                         f"Server error {resp.status_code}",
@@ -83,13 +84,9 @@ class OrbiSearchClient:
                     continue
 
                 if resp.status_code == 401:
-                    raise OrbiSearchError(
-                        "Invalid or missing API key", status_code=401
-                    )
+                    raise OrbiSearchError("Invalid or missing API key", status_code=401)
                 if resp.status_code == 403:
-                    raise OrbiSearchError(
-                        "Insufficient credits", status_code=403
-                    )
+                    raise OrbiSearchError("Insufficient credits", status_code=403)
 
                 resp.raise_for_status()
                 return resp.json()
@@ -102,7 +99,7 @@ class OrbiSearchClient:
             except httpx.RequestError as exc:
                 last_err = OrbiSearchError(f"Request failed: {exc}")
                 if attempt < MAX_RETRIES:
-                    time.sleep(min(2 ** attempt, 30))
+                    time.sleep(min(2**attempt, 30))
                     continue
                 raise last_err from exc
 
@@ -112,9 +109,7 @@ class OrbiSearchClient:
 
     def verify_email(self, email: str, *, timeout: int = 70) -> dict:
         """Verify a single email address (GET /v1/verify)."""
-        return self._request(
-            "GET", "/v1/verify", params={"email": email, "timeout": timeout}
-        )
+        return self._request("GET", "/v1/verify", params={"email": email, "timeout": timeout})
 
     def submit_bulk(self, emails: list[str]) -> dict:
         """Submit a bulk verification job (POST /v1/bulk)."""

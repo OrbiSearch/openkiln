@@ -3,16 +3,16 @@ Tests for the OrbiSearch skill.
 
 Covers: skill install, schema, constants, API client, CLI registration, queries.
 """
+
 from __future__ import annotations
 
-import json
 import os
 import sqlite3
 
 from typer.testing import CliRunner
 
-from openkiln.cli import app
 from openkiln import db
+from openkiln.cli import app
 
 runner = CliRunner()
 
@@ -29,8 +29,7 @@ def test_skill_install_orbisearch(openkiln_home):
 
     with db.connection() as conn:
         row = conn.execute(
-            "SELECT skill_name FROM installed_skills "
-            "WHERE skill_name = 'orbisearch'"
+            "SELECT skill_name FROM installed_skills WHERE skill_name = 'orbisearch'"
         ).fetchone()
     assert row is not None
 
@@ -64,10 +63,7 @@ def test_schema_creates_all_tables(openkiln_home):
     db_path = openkiln_home / "skills" / "orbisearch.db"
     conn = sqlite3.connect(db_path)
     tables = {
-        row[0]
-        for row in conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table'"
-        ).fetchall()
+        row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
     }
     conn.close()
 
@@ -83,15 +79,11 @@ def test_bulk_jobs_unique_constraint(openkiln_home):
     db_path = openkiln_home / "skills" / "orbisearch.db"
     conn = sqlite3.connect(db_path)
 
-    conn.execute(
-        "INSERT INTO bulk_jobs (job_id, total_emails) VALUES ('job-1', 10)"
-    )
+    conn.execute("INSERT INTO bulk_jobs (job_id, total_emails) VALUES ('job-1', 10)")
     conn.commit()
 
     try:
-        conn.execute(
-            "INSERT INTO bulk_jobs (job_id, total_emails) VALUES ('job-1', 20)"
-        )
+        conn.execute("INSERT INTO bulk_jobs (job_id, total_emails) VALUES ('job-1', 20)")
         conn.commit()
         assert False, "Expected UNIQUE constraint violation"
     except sqlite3.IntegrityError:
@@ -106,6 +98,7 @@ def test_bulk_jobs_unique_constraint(openkiln_home):
 def test_init_exports():
     """__init__.py exports __version__."""
     from openkiln.skills.orbisearch import __version__
+
     assert __version__ == "0.1.0"
 
 
@@ -122,7 +115,7 @@ def test_api_client_construction():
 
 def test_api_client_no_key_error():
     """get_client raises OrbiSearchError when no key is configured."""
-    from openkiln.skills.orbisearch.api import get_client, OrbiSearchError
+    from openkiln.skills.orbisearch.api import OrbiSearchError, get_client
 
     old = os.environ.pop("ORBISEARCH_API_KEY", None)
     try:
@@ -151,6 +144,7 @@ def test_api_client_auth_header():
 def test_cli_app_mountable():
     """CLI app is a Typer instance and can be mounted."""
     import importlib
+
     mod = importlib.import_module("openkiln.skills.orbisearch.cli")
     skill_app = getattr(mod, "app", None)
     assert skill_app is not None
@@ -180,12 +174,14 @@ def test_queries_upsert_bulk_job(openkiln_home):
     runner.invoke(app, ["skill", "install", "orbisearch"])
 
     # insert
-    queries.upsert_bulk_job({
-        "job_id": "test-job-1",
-        "status": "pending",
-        "total_emails": 100,
-        "emails_processed": 0,
-    })
+    queries.upsert_bulk_job(
+        {
+            "job_id": "test-job-1",
+            "status": "pending",
+            "total_emails": 100,
+            "emails_processed": 0,
+        }
+    )
 
     job = queries.get_bulk_job("test-job-1")
     assert job is not None
@@ -193,13 +189,15 @@ def test_queries_upsert_bulk_job(openkiln_home):
     assert job["total_emails"] == 100
 
     # update
-    queries.upsert_bulk_job({
-        "job_id": "test-job-1",
-        "status": "complete",
-        "total_emails": 100,
-        "emails_processed": 100,
-        "completed_at": "2026-01-01T00:00:00Z",
-    })
+    queries.upsert_bulk_job(
+        {
+            "job_id": "test-job-1",
+            "status": "complete",
+            "total_emails": 100,
+            "emails_processed": 100,
+            "completed_at": "2026-01-01T00:00:00Z",
+        }
+    )
 
     job = queries.get_bulk_job("test-job-1")
     assert job["job_status"] == "complete"
@@ -240,16 +238,20 @@ def test_queries_list_bulk_jobs(openkiln_home):
     runner.invoke(app, ["init"])
     runner.invoke(app, ["skill", "install", "orbisearch"])
 
-    queries.upsert_bulk_job({
-        "job_id": "job-a",
-        "status": "complete",
-        "total_emails": 50,
-    })
-    queries.upsert_bulk_job({
-        "job_id": "job-b",
-        "status": "pending",
-        "total_emails": 100,
-    })
+    queries.upsert_bulk_job(
+        {
+            "job_id": "job-a",
+            "status": "complete",
+            "total_emails": 50,
+        }
+    )
+    queries.upsert_bulk_job(
+        {
+            "job_id": "job-b",
+            "status": "pending",
+            "total_emails": 100,
+        }
+    )
 
     jobs = queries.list_bulk_jobs()
     assert len(jobs) == 2

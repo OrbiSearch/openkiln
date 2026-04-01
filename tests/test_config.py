@@ -1,4 +1,5 @@
 from pathlib import Path
+
 from openkiln import config
 
 
@@ -41,9 +42,7 @@ def test_config_reads_from_file(openkiln_home):
     """Config reads values from config.toml when it exists."""
     config_file = openkiln_home / "config.toml"
     config_file.write_text(
-        '[database]\n'
-        f'core_db = "{openkiln_home}/mycore.db"\n'
-        f'skills_dir = "{openkiln_home}/myskills"\n'
+        f'[database]\ncore_db = "{openkiln_home}/mycore.db"\nskills_dir = "{openkiln_home}/myskills"\n'
     )
     cfg = config.get()
     assert cfg.core_db == openkiln_home / "mycore.db"
@@ -61,9 +60,7 @@ def test_env_var_overrides_config_file(openkiln_home, monkeypatch):
 def test_skill_db_path(openkiln_home):
     """skill_db_path returns expected path for a skill name."""
     cfg = config.get()
-    assert cfg.skill_db_path("orbisearch") == (
-        openkiln_home / "skills" / "orbisearch.db"
-    )
+    assert cfg.skill_db_path("orbisearch") == (openkiln_home / "skills" / "orbisearch.db")
 
 
 def test_skill_config_returns_empty_dict_when_missing(openkiln_home):
@@ -76,11 +73,11 @@ def test_skill_config_reads_skill_section(openkiln_home):
     """skill_config returns the correct section for an installed skill."""
     config_file = openkiln_home / "config.toml"
     config_file.write_text(
-        '[database]\n'
+        "[database]\n"
         f'core_db = "{openkiln_home}/core.db"\n'
         f'skills_dir = "{openkiln_home}/skills"\n'
-        '\n'
-        '[skills.orbisearch]\n'
+        "\n"
+        "[skills.orbisearch]\n"
         'api_key = "test-key-123"\n'
     )
     cfg = config.get()

@@ -1,4 +1,5 @@
 from typer.testing import CliRunner
+
 from openkiln.cli import app
 
 runner = CliRunner()
@@ -48,6 +49,7 @@ def test_status_succeeds_after_init(openkiln_home):
 def test_status_json_is_valid(openkiln_home):
     """openkiln status --json returns valid JSON."""
     import json
+
     runner.invoke(app, ["init"])
     result = runner.invoke(app, ["status", "--json"])
     assert result.exit_code == 0
@@ -60,6 +62,7 @@ def test_status_json_is_valid(openkiln_home):
 def test_status_json_before_init_returns_error(openkiln_home):
     """openkiln status --json returns connected: false before init."""
     import json
+
     result = runner.invoke(app, ["status", "--json"])
     assert result.exit_code == 1
     data = json.loads(result.output)

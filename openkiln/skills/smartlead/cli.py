@@ -5,13 +5,13 @@ from pathlib import Path
 from typing import Optional
 
 import typer
+from rich import print as rprint
 from rich.console import Console
 from rich.table import Table
-from rich import print as rprint
 
 from openkiln import db
-from openkiln.skills.smartlead.api import get_client, SmartleadError
-from openkiln.skills.smartlead import queries, CONTACT_TO_SMARTLEAD, INTERNAL_FIELDS
+from openkiln.skills.smartlead import CONTACT_TO_SMARTLEAD, INTERNAL_FIELDS, queries
+from openkiln.skills.smartlead.api import SmartleadError, get_client
 
 app = typer.Typer(
     name="smartlead",
@@ -42,9 +42,7 @@ def campaigns(
     campaign_id: Optional[int] = typer.Argument(
         None, help="Campaign ID to show details for. Omit to list all."
     ),
-    output_json: bool = typer.Option(
-        False, "--json", help="Output as JSON."
-    ),
+    output_json: bool = typer.Option(False, "--json", help="Output as JSON."),
 ) -> None:
     """List campaigns or show details for a specific campaign."""
     try:
@@ -149,9 +147,7 @@ def stats(
     end_date: Optional[str] = typer.Option(
         None, "--end-date", help="End date (YYYY-MM-DD) for date-range analytics."
     ),
-    output_json: bool = typer.Option(
-        False, "--json", help="Output as JSON."
-    ),
+    output_json: bool = typer.Option(False, "--json", help="Output as JSON."),
 ) -> None:
     """Show campaign analytics. Use --start-date/--end-date for date-range breakdown."""
     try:
@@ -211,8 +207,13 @@ def stats(
         status_table.add_column("Count", justify="right")
 
         for key in [
-            "total", "notStarted", "inprogress", "completed",
-            "interested", "blocked", "paused",
+            "total",
+            "notStarted",
+            "inprogress",
+            "completed",
+            "interested",
+            "blocked",
+            "paused",
         ]:
             val = lead_stats.get(key)
             if val is not None and val > 0:
@@ -232,9 +233,7 @@ def stats(
 
 @accounts_app.command("list")
 def accounts_list(
-    output_json: bool = typer.Option(
-        False, "--json", help="Output as JSON."
-    ),
+    output_json: bool = typer.Option(False, "--json", help="Output as JSON."),
 ) -> None:
     """List all email accounts."""
     try:
@@ -279,9 +278,7 @@ def accounts_list(
 
 @app.command("sync")
 def sync(
-    output_json: bool = typer.Option(
-        False, "--json", help="Output as JSON."
-    ),
+    output_json: bool = typer.Option(False, "--json", help="Output as JSON."),
 ) -> None:
     """Sync campaigns, sequences, and stats from Smartlead to local DB."""
     try:
@@ -329,12 +326,14 @@ def sync(
                     f"{campaign.get('name', cid)}: {e}[/yellow]"
                 )
 
-        synced.append({
-            "id": cid,
-            "name": campaign.get("name"),
-            "status": campaign.get("status"),
-            "sequences": len(seqs),
-        })
+        synced.append(
+            {
+                "id": cid,
+                "name": campaign.get("name"),
+                "status": campaign.get("status"),
+                "sequences": len(seqs),
+            }
+        )
 
         if not output_json:
             console.print(
@@ -346,9 +345,7 @@ def sync(
     if output_json:
         typer.echo(json.dumps({"synced": synced}, indent=2))
     else:
-        console.print(
-            f"\n[bold green]Synced {len(synced)} campaigns.[/bold green]\n"
-        )
+        console.print(f"\n[bold green]Synced {len(synced)} campaigns.[/bold green]\n")
 
 
 # ── Campaign Creation ────────────────────────────────────────
@@ -360,9 +357,7 @@ def create(
     client_id: Optional[int] = typer.Option(
         None, "--client-id", help="Associate with a client (sub-account)."
     ),
-    output_json: bool = typer.Option(
-        False, "--json", help="Output as JSON."
-    ),
+    output_json: bool = typer.Option(False, "--json", help="Output as JSON."),
 ) -> None:
     """Create a new campaign (DRAFTED status)."""
     try:
@@ -394,9 +389,7 @@ def duplicate(
     name: Optional[str] = typer.Option(
         None, "--name", help="Name for the new campaign. Default: '<original> (copy)'."
     ),
-    output_json: bool = typer.Option(
-        False, "--json", help="Output as JSON."
-    ),
+    output_json: bool = typer.Option(False, "--json", help="Output as JSON."),
 ) -> None:
     """Duplicate a campaign — copies sequences and settings to a new drafted campaign."""
     try:
@@ -421,11 +414,7 @@ def duplicate(
             for seq in source_sequences:
                 delay = seq.get("seq_delay_details", {})
                 # API returns delayInDays but expects delay_in_days
-                delay_days = (
-                    delay.get("delay_in_days")
-                    or delay.get("delayInDays")
-                    or 0
-                )
+                delay_days = delay.get("delay_in_days") or delay.get("delayInDays") or 0
                 entry: dict = {
                     "seq_number": seq.get("seq_number"),
                     "seq_delay_details": {"delay_in_days": delay_days},
@@ -442,14 +431,12 @@ def duplicate(
             client.save_sequences(new_id, normalized)
 
         # copy email accounts
-        accounts_copied = False
         try:
             source_accounts = client.get_campaign_email_accounts(campaign_id)
             if source_accounts:
                 account_ids = [a["id"] for a in source_accounts if "id" in a]
                 if account_ids:
                     client.add_email_accounts_to_campaign(new_id, account_ids)
-                    accounts_copied = True
         except SmartleadError as e:
             if not output_json:
                 console.print(
@@ -461,21 +448,24 @@ def duplicate(
         _handle_api_error(e)
 
     if output_json:
-        typer.echo(json.dumps({
-            "source_id": campaign_id,
-            "new_id": new_id,
-            "name": new_name,
-            "sequences_copied": len(source_sequences),
-        }, indent=2))
+        typer.echo(
+            json.dumps(
+                {
+                    "source_id": campaign_id,
+                    "new_id": new_id,
+                    "name": new_name,
+                    "sequences_copied": len(source_sequences),
+                },
+                indent=2,
+            )
+        )
         return
 
     console.print(
         f"\n[green]\u2713[/green] Duplicated campaign {campaign_id} "
         f"\u2192 [bold]{new_name}[/bold] (ID: {new_id})"
     )
-    console.print(
-        f"  Sequences copied: {len(source_sequences)}"
-    )
+    console.print(f"  Sequences copied: {len(source_sequences)}")
     console.print(
         f"\nEdit sequences, then start:\n"
         f"  openkiln smartlead campaigns {new_id}\n"
@@ -487,12 +477,14 @@ def duplicate(
 def sequence(
     campaign_id: int = typer.Argument(..., help="Campaign ID."),
     file: Path = typer.Option(
-        ..., "--file", "-f", help="JSON file with sequence steps.",
-        exists=True, readable=True,
+        ...,
+        "--file",
+        "-f",
+        help="JSON file with sequence steps.",
+        exists=True,
+        readable=True,
     ),
-    output_json: bool = typer.Option(
-        False, "--json", help="Output as JSON."
-    ),
+    output_json: bool = typer.Option(False, "--json", help="Output as JSON."),
 ) -> None:
     """Set email sequences for a campaign from a JSON file.
 
@@ -521,48 +513,43 @@ def sequence(
 
     try:
         client = get_client()
-        result = client.save_sequences(campaign_id, sequences)
+        client.save_sequences(campaign_id, sequences)
     except SmartleadError as e:
         _handle_api_error(e)
 
     if output_json:
-        typer.echo(json.dumps({
-            "campaign_id": campaign_id,
-            "sequences_saved": len(sequences),
-        }, indent=2))
+        typer.echo(
+            json.dumps(
+                {
+                    "campaign_id": campaign_id,
+                    "sequences_saved": len(sequences),
+                },
+                indent=2,
+            )
+        )
         return
 
     console.print(
-        f"\n[green]\u2713[/green] Saved {len(sequences)} sequence steps "
-        f"to campaign {campaign_id}.\n"
+        f"\n[green]\u2713[/green] Saved {len(sequences)} sequence steps to campaign {campaign_id}.\n"
     )
 
 
 @app.command("schedule")
 def schedule(
     campaign_id: int = typer.Argument(..., help="Campaign ID."),
-    timezone: str = typer.Option(
-        ..., "--timezone", "-tz", help="IANA timezone (e.g. US/Eastern)."
-    ),
+    timezone: str = typer.Option(..., "--timezone", "-tz", help="IANA timezone (e.g. US/Eastern)."),
     days: str = typer.Option(
-        "1,2,3,4,5", "--days",
-        help="Comma-separated days (0=Sun, 1=Mon, ..., 6=Sat)."
+        "1,2,3,4,5", "--days", help="Comma-separated days (0=Sun, 1=Mon, ..., 6=Sat)."
     ),
-    start_hour: str = typer.Option(
-        "09:00", "--start-hour", help="Send window start (24h, e.g. 09:00)."
-    ),
-    end_hour: str = typer.Option(
-        "17:00", "--end-hour", help="Send window end (24h, e.g. 17:00)."
-    ),
+    start_hour: str = typer.Option("09:00", "--start-hour", help="Send window start (24h, e.g. 09:00)."),
+    end_hour: str = typer.Option("17:00", "--end-hour", help="Send window end (24h, e.g. 17:00)."),
     max_leads_per_day: Optional[int] = typer.Option(
         None, "--max-leads-per-day", help="Max new leads contacted per day."
     ),
     min_time_btw_emails: int = typer.Option(
         3, "--min-gap", help="Min minutes between emails (minimum 3)."
     ),
-    output_json: bool = typer.Option(
-        False, "--json", help="Output as JSON."
-    ),
+    output_json: bool = typer.Option(False, "--json", help="Output as JSON."),
 ) -> None:
     """Set the sending schedule for a campaign."""
     import re
@@ -601,13 +588,18 @@ def schedule(
         _handle_api_error(e)
 
     if output_json:
-        typer.echo(json.dumps({
-            "campaign_id": campaign_id,
-            "timezone": timezone,
-            "days": days_list,
-            "start_hour": start_hour,
-            "end_hour": end_hour,
-        }, indent=2))
+        typer.echo(
+            json.dumps(
+                {
+                    "campaign_id": campaign_id,
+                    "timezone": timezone,
+                    "days": days_list,
+                    "start_hour": start_hour,
+                    "end_hour": end_hour,
+                },
+                indent=2,
+            )
+        )
         return
 
     day_names = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
@@ -627,9 +619,7 @@ def accounts_add(
     account_id: list[int] = typer.Option(
         ..., "--account-id", help="Email account ID(s) to add. Repeatable."
     ),
-    output_json: bool = typer.Option(
-        False, "--json", help="Output as JSON."
-    ),
+    output_json: bool = typer.Option(False, "--json", help="Output as JSON."),
 ) -> None:
     """Add email accounts to a campaign."""
     try:
@@ -639,15 +629,19 @@ def accounts_add(
         _handle_api_error(e)
 
     if output_json:
-        typer.echo(json.dumps({
-            "campaign_id": campaign_id,
-            "added": account_id,
-        }, indent=2))
+        typer.echo(
+            json.dumps(
+                {
+                    "campaign_id": campaign_id,
+                    "added": account_id,
+                },
+                indent=2,
+            )
+        )
         return
 
     console.print(
-        f"\n[green]\u2713[/green] Added {len(account_id)} email account(s) "
-        f"to campaign {campaign_id}.\n"
+        f"\n[green]\u2713[/green] Added {len(account_id)} email account(s) to campaign {campaign_id}.\n"
     )
 
 
@@ -721,9 +715,7 @@ def _load_contacts(
         params.append(segment)
 
     if tag:
-        where.append(
-            "(tags LIKE ? OR tags LIKE ? OR tags LIKE ? OR tags = ?)"
-        )
+        where.append("(tags LIKE ? OR tags LIKE ? OR tags LIKE ? OR tags = ?)")
         params.extend([f"{tag},%", f"%,{tag},%", f"%,{tag}", tag])
 
     if lifecycle:
@@ -747,33 +739,15 @@ def _load_contacts(
 @app.command("push")
 def push(
     campaign_id: int = typer.Argument(..., help="Smartlead campaign ID."),
-    skill: str = typer.Option(
-        "crm", "--skill", help="Skill to read contacts from."
-    ),
-    segment: Optional[str] = typer.Option(
-        None, "--segment", help="Filter contacts by segment."
-    ),
-    tag: Optional[str] = typer.Option(
-        None, "--tag", help="Filter contacts by tag."
-    ),
-    list_name: Optional[str] = typer.Option(
-        None, "--list", help="Push contacts from a named list."
-    ),
-    lifecycle: Optional[str] = typer.Option(
-        None, "--lifecycle", help="Filter by lifecycle stage."
-    ),
-    lead_status: Optional[str] = typer.Option(
-        None, "--status", help="Filter by lead status."
-    ),
-    force: bool = typer.Option(
-        False, "--force", help="Bypass dedup — push even if already pushed."
-    ),
-    apply: bool = typer.Option(
-        False, "--apply", help="Actually push. Default is dry run."
-    ),
-    output_json: bool = typer.Option(
-        False, "--json", help="Output as JSON."
-    ),
+    skill: str = typer.Option("crm", "--skill", help="Skill to read contacts from."),
+    segment: Optional[str] = typer.Option(None, "--segment", help="Filter contacts by segment."),
+    tag: Optional[str] = typer.Option(None, "--tag", help="Filter contacts by tag."),
+    list_name: Optional[str] = typer.Option(None, "--list", help="Push contacts from a named list."),
+    lifecycle: Optional[str] = typer.Option(None, "--lifecycle", help="Filter by lifecycle stage."),
+    lead_status: Optional[str] = typer.Option(None, "--status", help="Filter by lead status."),
+    force: bool = typer.Option(False, "--force", help="Bypass dedup — push even if already pushed."),
+    apply: bool = typer.Option(False, "--apply", help="Actually push. Default is dry run."),
+    output_json: bool = typer.Option(False, "--json", help="Output as JSON."),
 ) -> None:
     """Push contacts to a Smartlead campaign.
 
@@ -804,10 +778,7 @@ def push(
     else:
         already_pushed = queries.get_pushed_emails(campaign_id)
         already_pushed_lower = {e.lower() for e in already_pushed}
-        to_push = [
-            c for c in contacts_with_email
-            if c["email"].lower() not in already_pushed_lower
-        ]
+        to_push = [c for c in contacts_with_email if c["email"].lower() not in already_pushed_lower]
         skipped_dedup = len(contacts_with_email) - len(to_push)
 
     # summary
@@ -834,9 +805,7 @@ def push(
             console.print(f"  Skipped (already pushed): {skipped_dedup}")
         console.print(f"  [bold]Would push: {len(to_push)}[/bold]")
         if to_push:
-            console.print(
-                f"\nRun with [bold]--apply[/bold] to push."
-            )
+            console.print("\nRun with [bold]--apply[/bold] to push.")
         console.print()
         return
 
@@ -879,8 +848,7 @@ def push(
 
         if not output_json:
             console.print(
-                f"  Batch {batch_count}: pushed {len(batch)} leads "
-                f"({pushed_count}/{len(to_push)})"
+                f"  Batch {batch_count}: pushed {len(batch)} leads ({pushed_count}/{len(to_push)})"
             )
 
     summary["pushed"] = pushed_count
@@ -904,15 +872,11 @@ def push(
 @app.command("start")
 def start(
     campaign_id: int = typer.Argument(..., help="Campaign ID to start."),
-    yes: bool = typer.Option(
-        False, "--yes", "-y", help="Skip confirmation prompt."
-    ),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
 ) -> None:
     """Start a campaign (set status to ACTIVE)."""
     if not yes:
-        confirm = typer.confirm(
-            f"Start campaign {campaign_id}? This will begin sending emails."
-        )
+        confirm = typer.confirm(f"Start campaign {campaign_id}? This will begin sending emails.")
         if not confirm:
             raise typer.Abort()
 
@@ -922,9 +886,7 @@ def start(
     except SmartleadError as e:
         _handle_api_error(e)
 
-    console.print(
-        f"\n[bold green]\u2713 Campaign {campaign_id} started.[/bold green]\n"
-    )
+    console.print(f"\n[bold green]\u2713 Campaign {campaign_id} started.[/bold green]\n")
 
 
 @app.command("pause")
@@ -938,23 +900,17 @@ def pause(
     except SmartleadError as e:
         _handle_api_error(e)
 
-    console.print(
-        f"\n[yellow]\u23f8 Campaign {campaign_id} paused.[/yellow]\n"
-    )
+    console.print(f"\n[yellow]\u23f8 Campaign {campaign_id} paused.[/yellow]\n")
 
 
 @app.command("stop")
 def stop(
     campaign_id: int = typer.Argument(..., help="Campaign ID to stop."),
-    yes: bool = typer.Option(
-        False, "--yes", "-y", help="Skip confirmation prompt."
-    ),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
 ) -> None:
     """Stop a campaign. Stopped campaigns cannot be restarted."""
     if not yes:
-        confirm = typer.confirm(
-            f"Stop campaign {campaign_id}? Stopped campaigns cannot be restarted."
-        )
+        confirm = typer.confirm(f"Stop campaign {campaign_id}? Stopped campaigns cannot be restarted.")
         if not confirm:
             raise typer.Abort()
 
@@ -964,30 +920,20 @@ def stop(
     except SmartleadError as e:
         _handle_api_error(e)
 
-    console.print(
-        f"\n[red]\u23f9 Campaign {campaign_id} stopped.[/red]\n"
-    )
+    console.print(f"\n[red]\u23f9 Campaign {campaign_id} stopped.[/red]\n")
 
 
 @app.command("monitor")
 def monitor(
     campaign_id: int = typer.Argument(..., help="Campaign ID."),
-    limit: int = typer.Option(
-        100, "--limit", help="Max leads to show."
-    ),
-    offset: int = typer.Option(
-        0, "--offset", help="Skip this many leads."
-    ),
-    output_json: bool = typer.Option(
-        False, "--json", help="Output as JSON."
-    ),
+    limit: int = typer.Option(100, "--limit", help="Max leads to show."),
+    offset: int = typer.Option(0, "--offset", help="Skip this many leads."),
+    output_json: bool = typer.Option(False, "--json", help="Output as JSON."),
 ) -> None:
     """Show lead-level engagement data for a campaign."""
     try:
         client = get_client()
-        leads = client.get_campaign_leads(
-            campaign_id, limit=limit, offset=offset
-        )
+        leads = client.get_campaign_leads(campaign_id, limit=limit, offset=offset)
     except SmartleadError as e:
         _handle_api_error(e)
 
@@ -1046,8 +992,7 @@ def monitor(
         console.print(f"\n  Showing {shown} of {total_leads} leads.\n")
     elif shown == limit:
         console.print(
-            f"\n  Showing {shown} leads (offset {offset}). "
-            f"Use --offset {offset + limit} to see more.\n"
+            f"\n  Showing {shown} leads (offset {offset}). Use --offset {offset + limit} to see more.\n"
         )
     else:
         console.print(f"\n  Showing {shown} leads.\n")
@@ -1059,15 +1004,9 @@ def monitor(
 @app.command("sync-touches")
 def sync_touches(
     campaign_id: int = typer.Argument(..., help="Campaign ID."),
-    skill: str = typer.Option(
-        "crm", "--skill", help="Skill to write touches to."
-    ),
-    apply: bool = typer.Option(
-        False, "--apply", help="Actually create touches. Default is dry run."
-    ),
-    output_json: bool = typer.Option(
-        False, "--json", help="Output as JSON."
-    ),
+    skill: str = typer.Option("crm", "--skill", help="Skill to write touches to."),
+    apply: bool = typer.Option(False, "--apply", help="Actually create touches. Default is dry run."),
+    output_json: bool = typer.Option(False, "--json", help="Output as JSON."),
 ) -> None:
     """Sync Smartlead engagement back as touches.
 
@@ -1135,13 +1074,15 @@ def sync_touches(
         if reply_count > old_reply_count:
             new_replies = reply_count - old_reply_count
             for _ in range(new_replies):
-                touches_to_create.append({
-                    "record_id": record_id,
-                    "channel": "email",
-                    "direction": "inbound",
-                    "note": f"Reply via Smartlead campaign {campaign_id}",
-                    "campaign_id": str(campaign_id),
-                })
+                touches_to_create.append(
+                    {
+                        "record_id": record_id,
+                        "channel": "email",
+                        "direction": "inbound",
+                        "note": f"Reply via Smartlead campaign {campaign_id}",
+                        "campaign_id": str(campaign_id),
+                    }
+                )
 
     summary = {
         "campaign_id": campaign_id,
@@ -1175,9 +1116,12 @@ def sync_touches(
                 WHERE record_id = ? AND campaign_id = ?
                 """,
                 (
-                    update["sent_count"], update["open_count"],
-                    update["click_count"], update["reply_count"],
-                    update["record_id"], update["campaign_id"],
+                    update["sent_count"],
+                    update["open_count"],
+                    update["click_count"],
+                    update["reply_count"],
+                    update["record_id"],
+                    update["campaign_id"],
                 ),
             )
         conn.commit()
@@ -1194,8 +1138,10 @@ def sync_touches(
                 VALUES (?, ?, ?, ?, ?)
                 """,
                 (
-                    touch["record_id"], touch["channel"],
-                    touch["direction"], touch["note"],
+                    touch["record_id"],
+                    touch["channel"],
+                    touch["direction"],
+                    touch["note"],
                     touch["campaign_id"],
                 ),
             )
@@ -1215,9 +1161,7 @@ def sync_touches(
         typer.echo(json.dumps(summary, indent=2))
         return
 
-    console.print(
-        f"\n[bold green]\u2713 Synced engagement for campaign {campaign_id}[/bold green]"
-    )
+    console.print(f"\n[bold green]\u2713 Synced engagement for campaign {campaign_id}[/bold green]")
     console.print(f"  Updated {len(updated_pushes)} lead push records")
     console.print(f"  Created {len(touches_to_create)} touches in {skill}")
     console.print()
@@ -1229,15 +1173,11 @@ def sync_touches(
 @app.command("delete")
 def delete(
     campaign_id: int = typer.Argument(..., help="Campaign ID to delete."),
-    yes: bool = typer.Option(
-        False, "--yes", "-y", help="Skip confirmation prompt."
-    ),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
 ) -> None:
     """Delete a campaign from Smartlead."""
     if not yes:
-        confirm = typer.confirm(
-            f"Delete campaign {campaign_id}? This cannot be undone."
-        )
+        confirm = typer.confirm(f"Delete campaign {campaign_id}? This cannot be undone.")
         if not confirm:
             raise typer.Abort()
 
@@ -1247,9 +1187,7 @@ def delete(
     except SmartleadError as e:
         _handle_api_error(e)
 
-    console.print(
-        f"\n[green]\u2713[/green] Campaign {campaign_id} deleted.\n"
-    )
+    console.print(f"\n[green]\u2713[/green] Campaign {campaign_id} deleted.\n")
 
 
 # ── Accounts Remove ─────────────────────────────────────────
@@ -1258,12 +1196,8 @@ def delete(
 @accounts_app.command("remove")
 def accounts_remove(
     campaign_id: int = typer.Argument(..., help="Campaign ID."),
-    account_id: int = typer.Option(
-        ..., "--account-id", help="Email account ID to remove."
-    ),
-    output_json: bool = typer.Option(
-        False, "--json", help="Output as JSON."
-    ),
+    account_id: int = typer.Option(..., "--account-id", help="Email account ID to remove."),
+    output_json: bool = typer.Option(False, "--json", help="Output as JSON."),
 ) -> None:
     """Remove an email account from a campaign."""
     try:
@@ -1273,15 +1207,19 @@ def accounts_remove(
         _handle_api_error(e)
 
     if output_json:
-        typer.echo(json.dumps({
-            "campaign_id": campaign_id,
-            "removed": account_id,
-        }, indent=2))
+        typer.echo(
+            json.dumps(
+                {
+                    "campaign_id": campaign_id,
+                    "removed": account_id,
+                },
+                indent=2,
+            )
+        )
         return
 
     console.print(
-        f"\n[green]\u2713[/green] Removed email account {account_id} "
-        f"from campaign {campaign_id}.\n"
+        f"\n[green]\u2713[/green] Removed email account {account_id} from campaign {campaign_id}.\n"
     )
 
 
@@ -1297,9 +1235,7 @@ app.add_typer(lead_app, name="lead")
 @lead_app.command("find")
 def lead_find(
     email: str = typer.Argument(..., help="Email address to search for."),
-    output_json: bool = typer.Option(
-        False, "--json", help="Output as JSON."
-    ),
+    output_json: bool = typer.Option(False, "--json", help="Output as JSON."),
 ) -> None:
     """Look up a lead by email address."""
     try:
@@ -1336,9 +1272,7 @@ def lead_find(
 def lead_thread(
     campaign_id: int = typer.Argument(..., help="Campaign ID."),
     lead_id: int = typer.Argument(..., help="Lead ID."),
-    output_json: bool = typer.Option(
-        False, "--json", help="Output as JSON."
-    ),
+    output_json: bool = typer.Option(False, "--json", help="Output as JSON."),
 ) -> None:
     """View email thread history for a lead in a campaign."""
     try:
@@ -1352,7 +1286,7 @@ def lead_thread(
         return
 
     if not data:
-        console.print(f"\n[dim]No messages found.[/dim]\n")
+        console.print("\n[dim]No messages found.[/dim]\n")
         return
 
     messages = data if isinstance(data, list) else [data]
@@ -1427,9 +1361,7 @@ def lead_unsubscribe(
 @app.command("export")
 def export(
     campaign_id: int = typer.Argument(..., help="Campaign ID."),
-    output_json: bool = typer.Option(
-        False, "--json", help="Output as JSON."
-    ),
+    output_json: bool = typer.Option(False, "--json", help="Output as JSON."),
 ) -> None:
     """Export all leads from a campaign as CSV."""
     try:

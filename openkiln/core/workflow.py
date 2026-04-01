@@ -12,13 +12,11 @@ from __future__ import annotations
 import importlib
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
 
-from openkiln import config, db
+from openkiln import db
+from openkiln.core.sink import Sink
 from openkiln.core.source import Source
 from openkiln.core.transform import Transform
-from openkiln.core.sink import Sink
-
 
 # ── Workflow Definition ──────────────────────────────────────
 
@@ -26,6 +24,7 @@ from openkiln.core.sink import Sink
 @dataclass
 class WorkflowDef:
     """Parsed workflow YAML."""
+
     name: str
     version: str = "1.0.0"
     author: str = ""
@@ -38,8 +37,14 @@ class WorkflowDef:
 
 
 _VALID_KEYS = {
-    "name", "version", "author", "requires",
-    "source", "transforms", "filter", "sinks",
+    "name",
+    "version",
+    "author",
+    "requires",
+    "source",
+    "transforms",
+    "filter",
+    "sinks",
 }
 
 
@@ -48,10 +53,7 @@ def parse_workflow(file_path: Path) -> WorkflowDef:
     try:
         import yaml
     except ImportError:
-        raise RuntimeError(
-            "PyYAML is required for workflows. "
-            "Install it: pip install pyyaml"
-        )
+        raise RuntimeError("PyYAML is required for workflows. Install it: pip install pyyaml")
 
     content = file_path.read_text()
     data = yaml.safe_load(content)
@@ -65,11 +67,10 @@ def parse_workflow(file_path: Path) -> WorkflowDef:
         if key not in _VALID_KEYS:
             # suggest closest match
             from difflib import get_close_matches
+
             matches = get_close_matches(key, _VALID_KEYS, n=1, cutoff=0.6)
             if matches:
-                errors.append(
-                    f"Unknown key '{key}' — did you mean '{matches[0]}'?"
-                )
+                errors.append(f"Unknown key '{key}' — did you mean '{matches[0]}'?")
             else:
                 errors.append(f"Unknown key '{key}'")
 
@@ -95,8 +96,7 @@ def parse_workflow(file_path: Path) -> WorkflowDef:
 
     if errors:
         raise ValueError(
-            f"Workflow YAML errors in {file_path}:\n"
-            + "\n".join(f"  - {e}" for e in errors)
+            f"Workflow YAML errors in {file_path}:\n" + "\n".join(f"  - {e}" for e in errors)
         )
 
     return WorkflowDef(
@@ -119,13 +119,9 @@ def _load_skill_toml(skill_name: str) -> dict:
     """Load a skill's skill.toml manifest."""
     import tomllib
 
-    toml_path = (
-        Path(__file__).parent.parent / "skills" / skill_name / "skill.toml"
-    )
+    toml_path = Path(__file__).parent.parent / "skills" / skill_name / "skill.toml"
     if not toml_path.exists():
-        raise RuntimeError(
-            f"skill.toml not found for skill '{skill_name}': {toml_path}"
-        )
+        raise RuntimeError(f"skill.toml not found for skill '{skill_name}': {toml_path}")
 
     with open(toml_path, "rb") as f:
         return tomllib.load(f)
@@ -159,15 +155,10 @@ def _find_provider(
             mod = importlib.import_module(module_path)
             cls = getattr(mod, class_name, None)
             if cls is None:
-                raise RuntimeError(
-                    f"Class '{class_name}' not found in module '{module_path}'"
-                )
+                raise RuntimeError(f"Class '{class_name}' not found in module '{module_path}'")
             return cls
 
-    raise RuntimeError(
-        f"Skill '{skill_name}' does not provide "
-        f"{capability_type} '{capability_name}'"
-    )
+    raise RuntimeError(f"Skill '{skill_name}' does not provide {capability_type} '{capability_name}'")
 
 
 # ── Validation ───────────────────────────────────────────────
@@ -198,9 +189,7 @@ def validate_workflow(wf: WorkflowDef) -> list[str]:
         with db.connection() as conn:
             installed = {
                 row["skill_name"]
-                for row in conn.execute(
-                    "SELECT skill_name FROM installed_skills"
-                ).fetchall()
+                for row in conn.execute("SELECT skill_name FROM installed_skills").fetchall()
             }
         for skill_name in wf.requires:
             if skill_name not in installed:
@@ -252,6 +241,7 @@ def validate_workflow(wf: WorkflowDef) -> list[str]:
 @dataclass
 class WorkflowResult:
     """Result of a workflow run."""
+
     workflow_name: str
     status: str = "pending"  # pending, running, complete, failed
     records_in: int = 0
@@ -332,8 +322,7 @@ def run_workflow(wf: WorkflowDef, *, dry_run: bool = True) -> WorkflowResult:
         if dry_run:
             result.status = "complete"
             result.sink_results = [
-                {"skill": s.get("skill"), "action": s.get("action"),
-                 "would_write": len(rows)}
+                {"skill": s.get("skill"), "action": s.get("action"), "would_write": len(rows)}
                 for s in wf.sinks
             ]
         else:
@@ -349,11 +338,13 @@ def run_workflow(wf: WorkflowDef, *, dry_run: bool = True) -> WorkflowResult:
                 sink_config.pop("skill", None)
 
                 sink_result = sink.write(rows, **sink_config)
-                result.sink_results.append({
-                    "skill": sink_skill,
-                    "action": sink_action,
-                    **sink_result,
-                })
+                result.sink_results.append(
+                    {
+                        "skill": sink_skill,
+                        "action": sink_action,
+                        **sink_result,
+                    }
+                )
 
             result.status = "complete"
 
@@ -368,8 +359,7 @@ def run_workflow(wf: WorkflowDef, *, dry_run: bool = True) -> WorkflowResult:
                 "UPDATE workflow_runs SET status = ?, records_in = ?, "
                 "records_out = ?, error = ?, completed_at = datetime('now') "
                 "WHERE id = ?",
-                (result.status, result.records_in, result.records_out,
-                 result.error, run_id),
+                (result.status, result.records_in, result.records_out, result.error, run_id),
             )
 
     return result

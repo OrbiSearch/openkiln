@@ -4,11 +4,12 @@ OrbiSearch workflow interface — Transform implementation.
 OrbiSearchTransform verifies email addresses via the OrbiSearch API
 and adds verification fields to each row.
 """
+
 from __future__ import annotations
 
 from openkiln.core import Transform
-from openkiln.skills.orbisearch.api import get_client, OrbiSearchError
 from openkiln.skills.orbisearch import queries
+from openkiln.skills.orbisearch.api import OrbiSearchError, get_client
 
 
 class OrbiSearchTransform(Transform):

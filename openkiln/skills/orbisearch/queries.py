@@ -1,4 +1,5 @@
 """Database queries for the OrbiSearch skill."""
+
 from __future__ import annotations
 
 import json
@@ -92,9 +93,7 @@ def get_bulk_job(job_id: str) -> dict | None:
     """Fetch a bulk job by its job_id."""
     conn = _connection()
     try:
-        row = conn.execute(
-            "SELECT * FROM bulk_jobs WHERE job_id = ?", (job_id,)
-        ).fetchone()
+        row = conn.execute("SELECT * FROM bulk_jobs WHERE job_id = ?", (job_id,)).fetchone()
         return dict(row) if row else None
     finally:
         conn.close()
@@ -118,8 +117,7 @@ def get_verification_result(email: str) -> dict | None:
     conn = _connection()
     try:
         row = conn.execute(
-            "SELECT * FROM verification_results WHERE email = ? "
-            "ORDER BY verified_at DESC LIMIT 1",
+            "SELECT * FROM verification_results WHERE email = ? ORDER BY verified_at DESC LIMIT 1",
             (email,),
         ).fetchone()
         return dict(row) if row else None

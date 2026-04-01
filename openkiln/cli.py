@@ -4,8 +4,8 @@ import importlib
 
 import typer
 
-from openkiln.commands import init, status, workflow, skill, record, update
 from openkiln import db
+from openkiln.commands import init, record, skill, status, update, workflow
 
 app = typer.Typer(
     name="openkiln",
@@ -16,8 +16,8 @@ app = typer.Typer(
 
 # core command groups
 app.add_typer(workflow.app, name="workflow")
-app.add_typer(skill.app,    name="skill")
-app.add_typer(record.app,   name="record")
+app.add_typer(skill.app, name="skill")
+app.add_typer(record.app, name="record")
 
 # single commands
 app.command("init")(init.run)
@@ -43,18 +43,14 @@ def _mount_skill_clis() -> None:
 
     try:
         with db.connection() as conn:
-            skills = conn.execute(
-                "SELECT skill_name FROM installed_skills"
-            ).fetchall()
+            skills = conn.execute("SELECT skill_name FROM installed_skills").fetchall()
 
         for row in skills:
             skill_name = row["skill_name"]
             if skill_name in _mounted_skills:
                 continue
             try:
-                mod = importlib.import_module(
-                    f"openkiln.skills.{skill_name}.cli"
-                )
+                mod = importlib.import_module(f"openkiln.skills.{skill_name}.cli")
                 skill_app = getattr(mod, "app", None)
                 if skill_app:
                     app.add_typer(skill_app, name=skill_name)
@@ -66,9 +62,11 @@ def _mount_skill_clis() -> None:
     except Exception:
         pass  # never crash startup due to skill discovery
 
+
 # run pending skill migrations on startup — silent on success
 try:
     from openkiln import db as _db
+
     _db.migrate_installed_skills()
 except Exception:
     pass

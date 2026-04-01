@@ -5,8 +5,8 @@ import sys
 from pathlib import Path
 
 import typer
-from rich.console import Console
 from rich import print as rprint
+from rich.console import Console
 
 console = Console()
 
@@ -44,9 +44,7 @@ def run() -> None:
     )
 
     if result.returncode != 0:
-        rprint(
-            f"[red]✗ git pull failed:[/red]\n{result.stderr}"
-        )
+        rprint(f"[red]✗ git pull failed:[/red]\n{result.stderr}")
         raise typer.Exit(code=1)
 
     console.print(result.stdout.strip())
@@ -61,9 +59,7 @@ def run() -> None:
     )
 
     if result.returncode != 0:
-        rprint(
-            f"[red]✗ pip install failed:[/red]\n{result.stderr}"
-        )
+        rprint(f"[red]✗ pip install failed:[/red]\n{result.stderr}")
         raise typer.Exit(code=1)
 
     console.print("[green]✓[/green] Dependencies up to date")

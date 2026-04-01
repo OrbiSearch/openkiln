@@ -4,9 +4,9 @@ import json
 from typing import Optional
 
 import typer
+from rich import print as rprint
 from rich.console import Console
 from rich.table import Table
-from rich import print as rprint
 
 from openkiln.skills.crm import queries
 
@@ -45,23 +45,19 @@ console = Console()
 
 # ── list contacts ─────────────────────────────────────────────
 
+
 @list_app.command("contacts")
 def list_contacts(
-    segment: Optional[str] = typer.Option(
-        None, "--segment", help="Filter by segment."
-    ),
-    tag: Optional[str] = typer.Option(
-        None, "--tag", help="Filter by tag."
-    ),
+    segment: Optional[str] = typer.Option(None, "--segment", help="Filter by segment."),
+    tag: Optional[str] = typer.Option(None, "--tag", help="Filter by tag."),
     lifecycle: Optional[str] = typer.Option(
-        None, "--lifecycle",
-        help=(
-            "Filter by lifecycle stage: "
-            "cold, lead, mql, sql, opportunity, customer, evangelist"
-        ),
+        None,
+        "--lifecycle",
+        help=("Filter by lifecycle stage: cold, lead, mql, sql, opportunity, customer, evangelist"),
     ),
     status: Optional[str] = typer.Option(
-        None, "--status",
+        None,
+        "--status",
         help=(
             "Filter by lead status: "
             "new, contacted, replied, interested, "
@@ -69,13 +65,10 @@ def list_contacts(
         ),
     ),
     not_contacted_since: Optional[int] = typer.Option(
-        None, "--not-contacted-since",
-        help="Only contacts not touched in this many days."
+        None, "--not-contacted-since", help="Only contacts not touched in this many days."
     ),
     limit: int = typer.Option(50, "--limit", help="Max rows to show."),
-    output_json: bool = typer.Option(
-        False, "--json", help="Output as JSON."
-    ),
+    output_json: bool = typer.Option(False, "--json", help="Output as JSON."),
 ) -> None:
     """List contacts with optional filters."""
     rows = queries.list_contacts(
@@ -98,11 +91,15 @@ def list_contacts(
         )
 
     if output_json:
-        typer.echo(json.dumps({
-            "total": total,
-            "showing": len(rows),
-            "contacts": [dict(r) for r in rows],
-        }))
+        typer.echo(
+            json.dumps(
+                {
+                    "total": total,
+                    "showing": len(rows),
+                    "contacts": [dict(r) for r in rows],
+                }
+            )
+        )
         return
 
     # build filter description
@@ -120,22 +117,18 @@ def list_contacts(
 
     filter_str = "  Filters: " + ", ".join(filters) if filters else ""
 
-    console.print(
-        f"\n[bold]Contacts[/bold] — "
-        f"{total:,} total (showing {len(rows)})"
-        f"{filter_str}\n"
-    )
+    console.print(f"\n[bold]Contacts[/bold] — {total:,} total (showing {len(rows)}){filter_str}\n")
 
     if not rows:
         console.print("[dim]No contacts match your filters.[/dim]\n")
         return
 
     table = Table(show_header=True, header_style="bold")
-    table.add_column("ID",         width=6)
-    table.add_column("Name",       width=22)
-    table.add_column("Email",      width=28)
-    table.add_column("Segment",    width=22)
-    table.add_column("Tags",       width=20)
+    table.add_column("ID", width=6)
+    table.add_column("Name", width=22)
+    table.add_column("Email", width=28)
+    table.add_column("Segment", width=22)
+    table.add_column("Tags", width=20)
     table.add_column("Last contact", width=14)
 
     for row in rows:
@@ -150,27 +143,19 @@ def list_contacts(
 
     console.print(table)
     if total > limit:
-        console.print(
-            f"\n[dim]Showing {limit} of {total:,}. "
-            f"Use --limit to see more.[/dim]"
-        )
+        console.print(f"\n[dim]Showing {limit} of {total:,}. Use --limit to see more.[/dim]")
     console.print()
 
 
 # ── list companies ────────────────────────────────────────────
 
+
 @list_app.command("companies")
 def list_companies(
-    segment: Optional[str] = typer.Option(
-        None, "--segment", help="Filter by segment."
-    ),
-    tag: Optional[str] = typer.Option(
-        None, "--tag", help="Filter by tag."
-    ),
+    segment: Optional[str] = typer.Option(None, "--segment", help="Filter by segment."),
+    tag: Optional[str] = typer.Option(None, "--tag", help="Filter by tag."),
     limit: int = typer.Option(50, "--limit", help="Max rows to show."),
-    output_json: bool = typer.Option(
-        False, "--json", help="Output as JSON."
-    ),
+    output_json: bool = typer.Option(False, "--json", help="Output as JSON."),
 ) -> None:
     """List companies with optional filters."""
     rows = queries.list_companies(
@@ -180,10 +165,14 @@ def list_companies(
     )
 
     if output_json:
-        typer.echo(json.dumps({
-            "showing": len(rows),
-            "companies": [dict(r) for r in rows],
-        }))
+        typer.echo(
+            json.dumps(
+                {
+                    "showing": len(rows),
+                    "companies": [dict(r) for r in rows],
+                }
+            )
+        )
         return
 
     console.print(f"\n[bold]Companies[/bold] — showing {len(rows)}\n")
@@ -193,11 +182,11 @@ def list_companies(
         return
 
     table = Table(show_header=True, header_style="bold")
-    table.add_column("ID",       width=6)
-    table.add_column("Name",     width=25)
-    table.add_column("Domain",   width=25)
-    table.add_column("Segment",  width=20)
-    table.add_column("Tags",     width=20)
+    table.add_column("ID", width=6)
+    table.add_column("Name", width=25)
+    table.add_column("Domain", width=25)
+    table.add_column("Segment", width=20)
+    table.add_column("Tags", width=20)
 
     for row in rows:
         table.add_row(
@@ -214,47 +203,31 @@ def list_companies(
 
 # ── tag ───────────────────────────────────────────────────────
 
+
 @app.command("tag")
 def tag(
-    entity: str = typer.Argument(
-        ..., help="Entity type to tag: contacts or companies."
-    ),
+    entity: str = typer.Argument(..., help="Entity type to tag: contacts or companies."),
     set_segment: Optional[str] = typer.Option(
         None, "--set-segment", help="Set segment on matching records."
     ),
-    add_tag: Optional[str] = typer.Option(
-        None, "--add-tag", help="Add a tag to matching records."
-    ),
+    add_tag: Optional[str] = typer.Option(None, "--add-tag", help="Add a tag to matching records."),
     remove_tag: Optional[str] = typer.Option(
         None, "--remove-tag", help="Remove a tag from matching records."
     ),
     filter_segment: Optional[str] = typer.Option(
         None, "--segment", help="Only update records with this segment."
     ),
-    filter_tag: Optional[str] = typer.Option(
-        None, "--tag", help="Only update records with this tag."
-    ),
+    filter_tag: Optional[str] = typer.Option(None, "--tag", help="Only update records with this tag."),
     ids: Optional[str] = typer.Option(
-        None, "--ids",
-        help="Comma-separated record IDs to update e.g. 1,2,3."
+        None, "--ids", help="Comma-separated record IDs to update e.g. 1,2,3."
     ),
-    email: Optional[str] = typer.Option(
-        None, "--email", help="Update record with this email."
-    ),
-    dry_run: bool = typer.Option(
-        True, "--dry-run/--apply",
-        help="Preview without writing (default)."
-    ),
-    output_json: bool = typer.Option(
-        False, "--json", help="Output as JSON."
-    ),
+    email: Optional[str] = typer.Option(None, "--email", help="Update record with this email."),
+    dry_run: bool = typer.Option(True, "--dry-run/--apply", help="Preview without writing (default)."),
+    output_json: bool = typer.Option(False, "--json", help="Output as JSON."),
 ) -> None:
     """Apply segment or tag updates to contacts or companies."""
     if entity not in ("contacts", "companies"):
-        rprint(
-            f"[red]✗ Unknown entity '{entity}'. "
-            f"Use: contacts or companies[/red]"
-        )
+        rprint(f"[red]✗ Unknown entity '{entity}'. Use: contacts or companies[/red]")
         raise typer.Exit(code=1)
 
     if not any([set_segment, add_tag, remove_tag]):
@@ -285,20 +258,28 @@ def tag(
 
     if dry_run:
         # count what would be affected
-        count = queries.count_contacts(
-            segment=filter_segment,
-            tag=filter_tag,
-        ) if entity == "contacts" else 0
+        count = (
+            queries.count_contacts(
+                segment=filter_segment,
+                tag=filter_tag,
+            )
+            if entity == "contacts"
+            else 0
+        )
 
         if output_json:
-            typer.echo(json.dumps({
-                "dry_run": True,
-                "entity": entity,
-                "would_affect": count,
-                "set_segment": set_segment,
-                "add_tag": add_tag,
-                "remove_tag": remove_tag,
-            }))
+            typer.echo(
+                json.dumps(
+                    {
+                        "dry_run": True,
+                        "entity": entity,
+                        "would_affect": count,
+                        "set_segment": set_segment,
+                        "add_tag": add_tag,
+                        "remove_tag": remove_tag,
+                    }
+                )
+            )
             return
 
         console.print(
@@ -319,14 +300,18 @@ def tag(
     )
 
     if output_json:
-        typer.echo(json.dumps({
-            "dry_run": False,
-            "entity": entity,
-            "updated": affected,
-            "set_segment": set_segment,
-            "add_tag": add_tag,
-            "remove_tag": remove_tag,
-        }))
+        typer.echo(
+            json.dumps(
+                {
+                    "dry_run": False,
+                    "entity": entity,
+                    "updated": affected,
+                    "set_segment": set_segment,
+                    "add_tag": add_tag,
+                    "remove_tag": remove_tag,
+                }
+            )
+        )
         return
 
     console.print(f"\n[green]✓[/green] Updated {affected:,} {entity}\n")
@@ -334,11 +319,10 @@ def tag(
 
 # ── stats ─────────────────────────────────────────────────────
 
+
 @app.command("stats")
 def stats(
-    output_json: bool = typer.Option(
-        False, "--json", help="Output as JSON."
-    ),
+    output_json: bool = typer.Option(False, "--json", help="Output as JSON."),
 ) -> None:
     """Show CRM summary statistics."""
     data = queries.get_stats()
@@ -351,55 +335,34 @@ def stats(
     console.print("─" * 40)
 
     # contacts
-    console.print(
-        f"\n[bold]Contacts[/bold]   {data['contacts']['total']:,}"
-    )
+    console.print(f"\n[bold]Contacts[/bold]   {data['contacts']['total']:,}")
     for row in data["contacts"]["by_segment"]:
-        console.print(
-            f"  {row['segment']:<30} {row['count']:>6,}"
-        )
+        console.print(f"  {row['segment']:<30} {row['count']:>6,}")
 
     # companies
-    console.print(
-        f"\n[bold]Companies[/bold]  {data['companies']['total']:,}"
-    )
+    console.print(f"\n[bold]Companies[/bold]  {data['companies']['total']:,}")
     for row in data["companies"]["by_segment"]:
-        console.print(
-            f"  {row['segment']:<30} {row['count']:>6,}"
-        )
+        console.print(f"  {row['segment']:<30} {row['count']:>6,}")
 
     # touches
-    console.print(
-        f"\n[bold]Touches[/bold]    {data['touches']['total']:,}"
-    )
+    console.print(f"\n[bold]Touches[/bold]    {data['touches']['total']:,}")
 
     console.print()
 
 
 # ── touch log ─────────────────────────────────────────────────
 
+
 @touch_app.command("log")
 def touch_log(
-    record_id: int = typer.Option(
-        ..., "--record-id", help="Record ID to log touch against."
-    ),
+    record_id: int = typer.Option(..., "--record-id", help="Record ID to log touch against."),
     channel: str = typer.Option(
-        "email", "--channel",
-        help="Channel: email, linkedin, phone, in_person, other."
+        "email", "--channel", help="Channel: email, linkedin, phone, in_person, other."
     ),
-    direction: str = typer.Option(
-        "outbound", "--direction",
-        help="Direction: outbound or inbound."
-    ),
-    note: Optional[str] = typer.Option(
-        None, "--note", help="Optional note about the interaction."
-    ),
-    campaign_id: Optional[str] = typer.Option(
-        None, "--campaign-id", help="Campaign ID if applicable."
-    ),
-    output_json: bool = typer.Option(
-        False, "--json", help="Output as JSON."
-    ),
+    direction: str = typer.Option("outbound", "--direction", help="Direction: outbound or inbound."),
+    note: Optional[str] = typer.Option(None, "--note", help="Optional note about the interaction."),
+    campaign_id: Optional[str] = typer.Option(None, "--campaign-id", help="Campaign ID if applicable."),
+    output_json: bool = typer.Option(False, "--json", help="Output as JSON."),
 ) -> None:
     """Log a touch (interaction) against a contact or company."""
     touch_id = queries.log_touch(
@@ -411,35 +374,31 @@ def touch_log(
     )
 
     if output_json:
-        typer.echo(json.dumps({
-            "touch_id": touch_id,
-            "record_id": record_id,
-            "channel": channel,
-            "direction": direction,
-        }))
+        typer.echo(
+            json.dumps(
+                {
+                    "touch_id": touch_id,
+                    "record_id": record_id,
+                    "channel": channel,
+                    "direction": direction,
+                }
+            )
+        )
         return
 
     console.print(
-        f"\n[green]✓[/green] Touch logged "
-        f"(id={touch_id}, record={record_id}, "
-        f"channel={channel})\n"
+        f"\n[green]✓[/green] Touch logged (id={touch_id}, record={record_id}, channel={channel})\n"
     )
 
 
 # ── reset ─────────────────────────────────────────────────────
 
+
 @app.command("reset")
 def reset(
-    entity: str = typer.Argument(
-        ..., help="Entity type to reset: contacts or companies."
-    ),
-    dry_run: bool = typer.Option(
-        True, "--dry-run/--apply",
-        help="Preview without deleting (default)."
-    ),
-    output_json: bool = typer.Option(
-        False, "--json", help="Output as JSON."
-    ),
+    entity: str = typer.Argument(..., help="Entity type to reset: contacts or companies."),
+    dry_run: bool = typer.Option(True, "--dry-run/--apply", help="Preview without deleting (default)."),
+    output_json: bool = typer.Option(False, "--json", help="Output as JSON."),
 ) -> None:
     """
     Delete all contacts or companies from the CRM skill database.
@@ -449,32 +408,32 @@ def reset(
     Always runs as --dry-run by default. Pass --apply to delete.
     """
     if entity not in ("contacts", "companies"):
-        rprint(
-            f"[red]✗ Unknown entity '{entity}'. "
-            f"Use: contacts or companies[/red]"
-        )
+        rprint(f"[red]✗ Unknown entity '{entity}'. Use: contacts or companies[/red]")
         raise typer.Exit(code=1)
 
     count = queries.count_contacts() if entity == "contacts" else 0
 
     if entity == "companies":
-        from openkiln.skills.crm import queries as q
         import sqlite3
+
         from openkiln import config
+
         db_path = config.get().skill_db_path("crm")
         conn = sqlite3.connect(db_path)
-        count = conn.execute(
-            "SELECT COUNT(*) FROM companies"
-        ).fetchone()[0]
+        count = conn.execute("SELECT COUNT(*) FROM companies").fetchone()[0]
         conn.close()
 
     if output_json:
         if dry_run:
-            typer.echo(json.dumps({
-                "dry_run": True,
-                "entity": entity,
-                "would_delete": count,
-            }))
+            typer.echo(
+                json.dumps(
+                    {
+                        "dry_run": True,
+                        "entity": entity,
+                        "would_delete": count,
+                    }
+                )
+            )
             return
 
     if dry_run:
@@ -487,7 +446,9 @@ def reset(
 
     # apply
     import sqlite3
+
     from openkiln import config
+
     db_path = config.get().skill_db_path("crm")
     conn = sqlite3.connect(db_path)
     try:
@@ -497,11 +458,15 @@ def reset(
         conn.close()
 
     if output_json:
-        typer.echo(json.dumps({
-            "dry_run": False,
-            "entity": entity,
-            "deleted": count,
-        }))
+        typer.echo(
+            json.dumps(
+                {
+                    "dry_run": False,
+                    "entity": entity,
+                    "deleted": count,
+                }
+            )
+        )
         return
 
     console.print(
@@ -513,27 +478,20 @@ def reset(
 
 # ── link ──────────────────────────────────────────────────────
 
+
 @link_app.command("contacts")
 def link_contacts(
     contact_field: str = typer.Option(
-        "email_domain", "--contact-field",
-        help="Contact field to match. 'email_domain' extracts domain from email."
+        "email_domain",
+        "--contact-field",
+        help="Contact field to match. 'email_domain' extracts domain from email.",
     ),
     company_field: str = typer.Option(
-        "domain", "--company-field",
-        help="Company field to match against."
+        "domain", "--company-field", help="Company field to match against."
     ),
-    overwrite: bool = typer.Option(
-        False, "--overwrite",
-        help="Overwrite existing company links."
-    ),
-    dry_run: bool = typer.Option(
-        True, "--dry-run/--apply",
-        help="Preview without writing (default)."
-    ),
-    output_json: bool = typer.Option(
-        False, "--json", help="Output as JSON."
-    ),
+    overwrite: bool = typer.Option(False, "--overwrite", help="Overwrite existing company links."),
+    dry_run: bool = typer.Option(True, "--dry-run/--apply", help="Preview without writing (default)."),
+    output_json: bool = typer.Option(False, "--json", help="Output as JSON."),
 ) -> None:
     """Link contacts to companies by matching fields."""
     result = queries.link_contacts_to_companies(
@@ -544,10 +502,14 @@ def link_contacts(
     )
 
     if output_json:
-        typer.echo(json.dumps({
-            "dry_run": dry_run,
-            **result,
-        }))
+        typer.echo(
+            json.dumps(
+                {
+                    "dry_run": dry_run,
+                    **result,
+                }
+            )
+        )
         return
 
     mode = "[yellow]DRY RUN[/yellow]" if dry_run else "[green]APPLIED[/green]"
@@ -558,23 +520,15 @@ def link_contacts(
         console.print(f"  [dim]Skipped:[/dim]   {result['skipped']:>6,}")
 
     if dry_run:
-        console.print(
-            f"\n  Run with [bold]--apply[/bold] to write links."
-        )
+        console.print("\n  Run with [bold]--apply[/bold] to write links.")
     console.print()
 
 
 @link_app.command("contact")
 def link_contact(
-    contact_id: int = typer.Option(
-        ..., "--contact-id", help="Contact record ID."
-    ),
-    company_id: int = typer.Option(
-        ..., "--company-id", help="Company record ID."
-    ),
-    output_json: bool = typer.Option(
-        False, "--json", help="Output as JSON."
-    ),
+    contact_id: int = typer.Option(..., "--contact-id", help="Contact record ID."),
+    company_id: int = typer.Option(..., "--company-id", help="Company record ID."),
+    output_json: bool = typer.Option(False, "--json", help="Output as JSON."),
 ) -> None:
     """Manually link a single contact to a company."""
     success = queries.link_contact_to_company(
@@ -583,18 +537,19 @@ def link_contact(
     )
 
     if output_json:
-        typer.echo(json.dumps({
-            "contact_id": contact_id,
-            "company_id": company_id,
-            "linked": success,
-        }))
+        typer.echo(
+            json.dumps(
+                {
+                    "contact_id": contact_id,
+                    "company_id": company_id,
+                    "linked": success,
+                }
+            )
+        )
         return
 
     if success:
-        console.print(
-            f"\n[green]✓[/green] Linked contact {contact_id} "
-            f"to company {company_id}\n"
-        )
+        console.print(f"\n[green]✓[/green] Linked contact {contact_id} to company {company_id}\n")
     else:
         rprint("[red]✗ Failed to link contact to company.[/red]")
         raise typer.Exit(code=1)
@@ -602,15 +557,12 @@ def link_contact(
 
 # ── list management ───────────────────────────────────────────
 
+
 @list_mgmt_app.command("create")
 def lists_create(
     name: str = typer.Argument(..., help="List name."),
-    description: Optional[str] = typer.Option(
-        None, "--description", help="Optional description."
-    ),
-    output_json: bool = typer.Option(
-        False, "--json", help="Output as JSON."
-    ),
+    description: Optional[str] = typer.Option(None, "--description", help="Optional description."),
+    output_json: bool = typer.Option(False, "--json", help="Output as JSON."),
 ) -> None:
     """Create a new named list."""
     try:
@@ -628,9 +580,7 @@ def lists_create(
 
 @list_mgmt_app.command("show")
 def lists_show(
-    output_json: bool = typer.Option(
-        False, "--json", help="Output as JSON."
-    ),
+    output_json: bool = typer.Option(False, "--json", help="Output as JSON."),
 ) -> None:
     """Show all lists with member counts."""
     rows = queries.get_lists()
@@ -641,15 +591,13 @@ def lists_show(
 
     if not rows:
         console.print("\n[dim]No lists yet.[/dim]\n")
-        console.print(
-            "Create one: [bold]openkiln crm lists create <name>[/bold]\n"
-        )
+        console.print("Create one: [bold]openkiln crm lists create <name>[/bold]\n")
         return
 
     console.print(f"\n[bold]Lists[/bold] — {len(rows)} total\n")
     table = Table(show_header=True, header_style="bold")
-    table.add_column("ID",      width=6)
-    table.add_column("Name",    width=25)
+    table.add_column("ID", width=6)
+    table.add_column("Name", width=25)
     table.add_column("Members", width=10)
     table.add_column("Description", width=30)
 
@@ -668,13 +616,8 @@ def lists_show(
 @list_mgmt_app.command("add")
 def lists_add(
     list_name: str = typer.Argument(..., help="List name."),
-    ids: str = typer.Option(
-        ..., "--ids",
-        help="Comma-separated record IDs to add."
-    ),
-    output_json: bool = typer.Option(
-        False, "--json", help="Output as JSON."
-    ),
+    ids: str = typer.Option(..., "--ids", help="Comma-separated record IDs to add."),
+    output_json: bool = typer.Option(False, "--json", help="Output as JSON."),
 ) -> None:
     """Add records to a list by record ID."""
     try:
@@ -693,9 +636,7 @@ def lists_add(
         typer.echo(json.dumps(result))
         return
 
-    console.print(
-        f"\n[green]✓[/green] Added {result['added']} to '{list_name}'"
-    )
+    console.print(f"\n[green]✓[/green] Added {result['added']} to '{list_name}'")
     if result["skipped"]:
         console.print(f"  [dim]{result['skipped']} already in list[/dim]")
     console.print()
@@ -705,9 +646,7 @@ def lists_add(
 def lists_members(
     list_name: str = typer.Argument(..., help="List name."),
     limit: int = typer.Option(50, "--limit"),
-    output_json: bool = typer.Option(
-        False, "--json", help="Output as JSON."
-    ),
+    output_json: bool = typer.Option(False, "--json", help="Output as JSON."),
 ) -> None:
     """Show members of a list."""
     try:
@@ -717,10 +656,14 @@ def lists_members(
         raise typer.Exit(code=1)
 
     if output_json:
-        typer.echo(json.dumps({
-            "list": list_name,
-            "members": [dict(r) for r in rows],
-        }))
+        typer.echo(
+            json.dumps(
+                {
+                    "list": list_name,
+                    "members": [dict(r) for r in rows],
+                }
+            )
+        )
         return
 
     console.print(f"\n[bold]List: {list_name}[/bold] — {len(rows)} members\n")
@@ -730,11 +673,11 @@ def lists_members(
         return
 
     table = Table(show_header=True, header_style="bold")
-    table.add_column("ID",    width=6)
-    table.add_column("Name",  width=22)
+    table.add_column("ID", width=6)
+    table.add_column("Name", width=22)
     table.add_column("Email", width=28)
     table.add_column("Lifecycle", width=14)
-    table.add_column("Status",    width=14)
+    table.add_column("Status", width=14)
 
     for row in rows:
         table.add_row(
@@ -752,9 +695,7 @@ def lists_members(
 @list_mgmt_app.command("delete")
 def lists_delete(
     list_name: str = typer.Argument(..., help="List name to delete."),
-    output_json: bool = typer.Option(
-        False, "--json", help="Output as JSON."
-    ),
+    output_json: bool = typer.Option(False, "--json", help="Output as JSON."),
 ) -> None:
     """Delete a list and all its memberships."""
     deleted = queries.delete_list(list_name)

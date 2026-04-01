@@ -7,8 +7,14 @@ __version__ = "0.1.0"
 # Smartlead lead fields accepted when pushing contacts.
 # Maps to Smartlead's lead_list item schema.
 LEAD_COLUMNS = [
-    "email", "first_name", "last_name", "company_name",
-    "phone_number", "website", "location", "linkedin_profile",
+    "email",
+    "first_name",
+    "last_name",
+    "company_name",
+    "phone_number",
+    "website",
+    "location",
+    "linkedin_profile",
     "company_url",
 ]
 
@@ -26,8 +32,14 @@ CONTACT_TO_SMARTLEAD = {
 
 # Fields that are internal metadata — never sent to external APIs
 INTERNAL_FIELDS = {
-    "record_id", "company_record_id", "created_at", "updated_at",
-    "last_contacted_at", "lead_score", "segment", "tags",
+    "record_id",
+    "company_record_id",
+    "created_at",
+    "updated_at",
+    "last_contacted_at",
+    "lead_score",
+    "segment",
+    "tags",
 }
 
 # Smartlead campaign statuses

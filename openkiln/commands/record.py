@@ -6,9 +6,8 @@ from pathlib import Path
 from typing import Optional
 
 import typer
-from rich.console import Console
-from rich.table import Table
 from rich import print as rprint
+from rich.console import Console
 
 from openkiln import config, db
 
@@ -26,15 +25,9 @@ INSPECT_SAMPLE_ROWS = 3
 
 @app.command("inspect")
 def inspect(
-    file: Path = typer.Argument(
-        ..., help="Path to CSV file.", exists=True
-    ),
-    skill: str = typer.Option(
-        None, "--skill", help="Show column mapping for this skill."
-    ),
-    output_json: bool = typer.Option(
-        False, "--json", help="Output as JSON for agent consumption."
-    ),
+    file: Path = typer.Argument(..., help="Path to CSV file.", exists=True),
+    skill: str = typer.Option(None, "--skill", help="Show column mapping for this skill."),
+    output_json: bool = typer.Option(False, "--json", help="Output as JSON for agent consumption."),
 ) -> None:
     """
     Preview a CSV file before importing.
@@ -67,9 +60,7 @@ def inspect(
         {
             "name": col,
             "type": infer_type(col),
-            "example": next(
-                (r[col] for r in sample if r.get(col)), ""
-            ),
+            "example": next((r[col] for r in sample if r.get(col)), ""),
         }
         for col in csv_columns
     ]
@@ -82,17 +73,11 @@ def inspect(
             rprint(f"[red]✗ Unknown skill: {skill}[/red]")
             raise typer.Exit(code=1)
 
-        csv_col_set = {c.lower() for c in csv_columns}
+        {c.lower() for c in csv_columns}
         skill_col_set = {c.lower() for c in skill_columns}
 
-        matched = [
-            c for c in csv_columns
-            if c.lower() in skill_col_set
-        ]
-        skipped = [
-            c for c in csv_columns
-            if c.lower() not in skill_col_set
-        ]
+        matched = [c for c in csv_columns if c.lower() in skill_col_set]
+        skipped = [c for c in csv_columns if c.lower() not in skill_col_set]
         skill_mapping = {
             "skill": skill,
             "matched": matched,
@@ -100,12 +85,16 @@ def inspect(
         }
 
     if output_json:
-        typer.echo(json.dumps({
-            "file": str(file),
-            "total_rows": total_rows,
-            "columns": columns_info,
-            "skill_mapping": skill_mapping,
-        }))
+        typer.echo(
+            json.dumps(
+                {
+                    "file": str(file),
+                    "total_rows": total_rows,
+                    "columns": columns_info,
+                    "skill_mapping": skill_mapping,
+                }
+            )
+        )
         return
 
     # human output
@@ -114,10 +103,7 @@ def inspect(
 
     console.print("[bold]Columns detected:[/bold]")
     for col in columns_info:
-        console.print(
-            f"  {col['name']:<25} {col['type']:<8} "
-            f"[dim]e.g. \"{col['example']}\"[/dim]"
-        )
+        console.print(f'  {col["name"]:<25} {col["type"]:<8} [dim]e.g. "{col["example"]}"[/dim]')
 
     if skill_mapping:
         console.print(f"\n[bold]Column mapping for --skill {skill}:[/bold]")
@@ -139,27 +125,19 @@ def inspect(
         )
 
     elif skill is None:
-        console.print(
-            f"\n[dim]Run with --skill <name> to see column mapping.[/dim]"
-        )
+        console.print("\n[dim]Run with --skill <name> to see column mapping.[/dim]")
 
     console.print()
 
 
 @app.command("import")
 def import_records(
-    file: Path = typer.Argument(
-        ..., help="Path to CSV file.", exists=True
-    ),
-    type_: str = typer.Option(
-        ..., "--type", help="Record type (e.g. contact, company)."
-    ),
-    skill: str = typer.Option(
-        None, "--skill",
-        help="Skill to write record data to (e.g. crm)."
-    ),
+    file: Path = typer.Argument(..., help="Path to CSV file.", exists=True),
+    type_: str = typer.Option(..., "--type", help="Record type (e.g. contact, company)."),
+    skill: str = typer.Option(None, "--skill", help="Skill to write record data to (e.g. crm)."),
     map_columns: Optional[list[str]] = typer.Option(
-        None, "--map",
+        None,
+        "--map",
         help=(
             "Map a CSV column to a schema column. "
             "Format: 'CSVColumn=schema_column'. "
@@ -168,7 +146,8 @@ def import_records(
         ),
     ),
     upsert: bool = typer.Option(
-        False, "--upsert",
+        False,
+        "--upsert",
         help=(
             "Update existing records on dedup key match instead of skipping. "
             "Without --upsert, duplicate records are skipped. "
@@ -176,12 +155,9 @@ def import_records(
         ),
     ),
     dry_run: bool = typer.Option(
-        True, "--dry-run/--apply",
-        help="Preview import without writing data (default)."
+        True, "--dry-run/--apply", help="Preview import without writing data (default)."
     ),
-    output_json: bool = typer.Option(
-        False, "--json", help="Output as JSON for agent consumption."
-    ),
+    output_json: bool = typer.Option(False, "--json", help="Output as JSON for agent consumption."),
 ) -> None:
     """
     Import records from a CSV file.
@@ -193,10 +169,7 @@ def import_records(
     Without --skill, only bare records are created in core.db.
     """
     if not db.check_connection():
-        rprint(
-            "[red]✗ Database not found.[/red]\n"
-            "Run [bold]openkiln init[/bold] first."
-        )
+        rprint("[red]✗ Database not found.[/red]\nRun [bold]openkiln init[/bold] first.")
         raise typer.Exit(code=1)
 
     # validate skill if provided
@@ -205,10 +178,7 @@ def import_records(
     if skill:
         skill_columns = _get_skill_columns(skill, type_)
         if skill_columns is None:
-            rprint(
-                f"[red]✗ Skill '{skill}' does not support "
-                f"type '{type_}'.[/red]"
-            )
+            rprint(f"[red]✗ Skill '{skill}' does not support type '{type_}'.[/red]")
             raise typer.Exit(code=1)
 
         dedup_key = _get_dedup_key(skill, type_)
@@ -216,14 +186,11 @@ def import_records(
         # check skill is installed
         with db.connection() as conn:
             row = conn.execute(
-                "SELECT skill_name FROM installed_skills "
-                "WHERE skill_name = ?",
-                (skill,)
+                "SELECT skill_name FROM installed_skills WHERE skill_name = ?", (skill,)
             ).fetchone()
         if not row:
             rprint(
-                f"[red]✗ Skill '{skill}' is not installed.[/red]\n"
-                f"Run: openkiln skill install {skill}"
+                f"[red]✗ Skill '{skill}' is not installed.[/red]\nRun: openkiln skill install {skill}"
             )
             raise typer.Exit(code=1)
 
@@ -249,9 +216,7 @@ def import_records(
             src = src.strip()
             dst = dst.strip()
             # validate target column exists in skill schema
-            if skill_columns and dst.lower() not in {
-                c.lower() for c in skill_columns
-            }:
+            if skill_columns and dst.lower() not in {c.lower() for c in skill_columns}:
                 rprint(
                     f"[red]✗ --map target '{dst}' is not a valid column "
                     f"for skill '{skill}'.\n"
@@ -264,7 +229,8 @@ def import_records(
     # build reverse mapping: schema_col_lower -> csv_col_name
     # so we can look up the CSV column for the dedup key
     reverse_mappings: dict[str, str] = {
-        dst.lower(): src for src, dst in (
+        dst.lower(): src
+        for src, dst in (
             (m.split("=", 1)[0].strip(), m.split("=", 1)[1].strip())
             for m in (map_columns or [])
             if "=" in m
@@ -346,7 +312,7 @@ def import_records(
     try:
         with db.transaction(attach_skills=attach) as conn:
             for batch_start in range(0, total_rows, db.BATCH_SIZE):
-                batch = all_rows[batch_start:batch_start + db.BATCH_SIZE]
+                batch = all_rows[batch_start : batch_start + db.BATCH_SIZE]
 
                 for row in batch:
                     # dedup check
@@ -358,34 +324,23 @@ def import_records(
                                 continue
                             # upsert — update existing record
                             if skill and skill_columns:
-                                skill_col_lower = {
-                                    c.lower(): c for c in skill_columns
-                                }
+                                skill_col_lower = {c.lower(): c for c in skill_columns}
                                 table = _skill_table_name(skill, type_)
                                 fields = {}
                                 for csv_col in matched_columns:
-                                    schema_col = (
-                                        explicit_mappings.get(csv_col.lower())
-                                        or skill_col_lower.get(csv_col.lower())
-                                    )
+                                    schema_col = explicit_mappings.get(
+                                        csv_col.lower()
+                                    ) or skill_col_lower.get(csv_col.lower())
                                     if schema_col and schema_col != dedup_key:
-                                        field_val = (
-                                            row.get(csv_col, "").strip() or None
-                                        )
+                                        field_val = row.get(csv_col, "").strip() or None
                                         if schema_col == "domain" and field_val:
-                                            field_val = _normalise_domain(
-                                                field_val
-                                            )
+                                            field_val = _normalise_domain(field_val)
                                         fields[schema_col] = field_val
 
                                 if fields:
-                                    set_clause = ", ".join(
-                                        f"{k} = ?" for k in fields.keys()
-                                    )
+                                    set_clause = ", ".join(f"{k} = ?" for k in fields.keys())
                                     conn.execute(
-                                        f"UPDATE {skill}.{table} "
-                                        f"SET {set_clause} "
-                                        f"WHERE {dedup_key} = ?",
+                                        f"UPDATE {skill}.{table} SET {set_clause} WHERE {dedup_key} = ?",
                                         list(fields.values()) + [val],
                                     )
                             imported += 1
@@ -394,30 +349,22 @@ def import_records(
                             existing.add(val)
 
                     # insert core record
-                    cursor = conn.execute(
-                        "INSERT INTO records (type) VALUES (?)",
-                        (type_,)
-                    )
+                    cursor = conn.execute("INSERT INTO records (type) VALUES (?)", (type_,))
                     record_id = cursor.lastrowid
 
                     # insert skill record if skill provided
                     if skill and skill_columns:
-                        skill_col_lower = {
-                            c.lower(): c for c in skill_columns
-                        }
+                        skill_col_lower = {c.lower(): c for c in skill_columns}
                         table = _skill_table_name(skill, type_)
                         fields = {"record_id": record_id}
 
                         for csv_col in matched_columns:
                             # explicit mapping takes precedence
-                            schema_col = (
-                                explicit_mappings.get(csv_col.lower())
-                                or skill_col_lower.get(csv_col.lower())
+                            schema_col = explicit_mappings.get(csv_col.lower()) or skill_col_lower.get(
+                                csv_col.lower()
                             )
                             if schema_col:
-                                field_val = (
-                                    row.get(csv_col, "").strip() or None
-                                )
+                                field_val = row.get(csv_col, "").strip() or None
                                 if schema_col == "domain" and field_val:
                                     field_val = _normalise_domain(field_val)
                                 fields[schema_col] = field_val
@@ -425,8 +372,7 @@ def import_records(
                         cols = ", ".join(fields.keys())
                         placeholders = ", ".join(["?"] * len(fields))
                         conn.execute(
-                            f"INSERT INTO {skill}.{table} "
-                            f"({cols}) VALUES ({placeholders})",
+                            f"INSERT INTO {skill}.{table} ({cols}) VALUES ({placeholders})",
                             list(fields.values()),
                         )
 
@@ -434,8 +380,7 @@ def import_records(
     except Exception as e:
         err_str = str(e)
         if "table" in err_str.lower() and (
-            "no such column" in err_str.lower()
-            or "no such table" in err_str.lower()
+            "no such column" in err_str.lower() or "no such table" in err_str.lower()
         ):
             rprint(
                 f"[red]✗ Skill '{skill}' schema is out of date.[/red]\n"
@@ -478,7 +423,7 @@ def _normalise_domain(value: str) -> str:
     # strip protocol
     for prefix in ("https://", "http://"):
         if value.lower().startswith(prefix):
-            value = value[len(prefix):]
+            value = value[len(prefix) :]
 
     # strip www.
     if value.lower().startswith("www."):
@@ -494,16 +439,15 @@ def _normalise_domain(value: str) -> str:
 
 # ── Internal helpers ──────────────────────────────────────────
 
-def _get_skill_columns(
-    skill_name: str,
-    type_: str | None = None
-) -> list[str] | None:
+
+def _get_skill_columns(skill_name: str, type_: str | None = None) -> list[str] | None:
     """
     Returns the list of known columns for a skill and optional type.
     Returns None if skill is unknown or type is unsupported.
     """
     try:
         import importlib
+
         mod = importlib.import_module(f"openkiln.skills.{skill_name}")
     except ImportError:
         return None
@@ -518,8 +462,8 @@ def _get_skill_columns(
 
     # map type to column list attribute
     type_map = {
-        "contact":  "CONTACT_COLUMNS",
-        "company":  "COMPANY_COLUMNS",
+        "contact": "CONTACT_COLUMNS",
+        "company": "COMPANY_COLUMNS",
     }
     attr = type_map.get(type_)
     if not attr:
@@ -531,6 +475,7 @@ def _get_dedup_key(skill_name: str, type_: str) -> str | None:
     """Returns the dedup key for a skill and record type."""
     try:
         import importlib
+
         mod = importlib.import_module(f"openkiln.skills.{skill_name}")
         return getattr(mod, "DEDUP_KEYS", {}).get(type_)
     except ImportError:
@@ -554,12 +499,10 @@ def _get_existing_dedup_values(
         return set()
 
     import sqlite3
+
     conn = sqlite3.connect(db_path)
     try:
-        rows = conn.execute(
-            f"SELECT {dedup_key} FROM {table} "
-            f"WHERE {dedup_key} IS NOT NULL"
-        ).fetchall()
+        rows = conn.execute(f"SELECT {dedup_key} FROM {table} WHERE {dedup_key} IS NOT NULL").fetchall()
         return {row[0].strip().lower() for row in rows if row[0]}
     except Exception:
         return set()
@@ -570,8 +513,8 @@ def _get_existing_dedup_values(
 def _skill_table_name(skill_name: str, type_: str) -> str:
     """Returns the skill db table name for a given record type."""
     table_map = {
-        ("crm", "contact"):  "contacts",
-        ("crm", "company"):  "companies",
+        ("crm", "contact"): "contacts",
+        ("crm", "company"): "companies",
     }
     return table_map.get((skill_name, type_), type_ + "s")
 
@@ -592,17 +535,21 @@ def _print_import_result(
 ) -> None:
     """Prints import results in human or JSON format."""
     if output_json:
-        typer.echo(json.dumps({
-            "dry_run": dry_run,
-            "file": str(file),
-            "type": type_,
-            "skill": skill,
-            "total": total,
-            "imported": imported,
-            "skipped_duplicates": skipped_dupes,
-            "skipped_unknown_columns": unknown_columns,
-            "column_mappings": explicit_mappings,
-        }))
+        typer.echo(
+            json.dumps(
+                {
+                    "dry_run": dry_run,
+                    "file": str(file),
+                    "type": type_,
+                    "skill": skill,
+                    "total": total,
+                    "imported": imported,
+                    "skipped_duplicates": skipped_dupes,
+                    "skipped_unknown_columns": unknown_columns,
+                    "column_mappings": explicit_mappings,
+                }
+            )
+        )
         return
 
     mode = "[yellow]DRY RUN[/yellow]" if dry_run else "[green]APPLIED[/green]"
@@ -612,34 +559,24 @@ def _print_import_result(
 
     if skipped_dupes:
         label = (
-            "  [yellow]Skipped (dupes):[/yellow]"
-            if not upsert
-            else "  [green]Updated (upsert):[/green]"
+            "  [yellow]Skipped (dupes):[/yellow]" if not upsert else "  [green]Updated (upsert):[/green]"
         )
         console.print(f"{label} {skipped_dupes:>8,}")
 
     if explicit_mappings:
-        console.print(
-            f"\n  [green]Column mappings applied:[/green]"
-        )
+        console.print("\n  [green]Column mappings applied:[/green]")
         for src, dst in explicit_mappings.items():
             console.print(f"    ✓  {src} → {dst}")
 
     if unknown_columns:
-        console.print(
-            f"\n  [yellow]Skipped columns "
-            f"(not in {skill} schema):[/yellow]"
-        )
+        console.print(f"\n  [yellow]Skipped columns (not in {skill} schema):[/yellow]")
         for col in unknown_columns:
             console.print(f"    ○  {col}")
         console.print(
-            f"\n  [dim]Tip: use --map 'ColumnName=schema_field' "
-            f"to import skipped columns.[/dim]"
+            "\n  [dim]Tip: use --map 'ColumnName=schema_field' to import skipped columns.[/dim]"
         )
 
     if dry_run:
-        console.print(
-            f"\n  Run with [bold]--apply[/bold] to write data."
-        )
+        console.print("\n  Run with [bold]--apply[/bold] to write data.")
 
     console.print()

@@ -1,6 +1,7 @@
 from typer.testing import CliRunner
-from openkiln.cli import app
+
 from openkiln import db
+from openkiln.cli import app
 
 runner = CliRunner()
 
@@ -37,10 +38,7 @@ def test_skill_install_crm(openkiln_home):
     assert (openkiln_home / "skills" / "crm.db").exists()
 
     with db.connection() as conn:
-        row = conn.execute(
-            "SELECT skill_name FROM installed_skills "
-            "WHERE skill_name = 'crm'"
-        ).fetchone()
+        row = conn.execute("SELECT skill_name FROM installed_skills WHERE skill_name = 'crm'").fetchone()
     assert row is not None
 
 
@@ -91,6 +89,7 @@ def test_skill_info_orbisearch(openkiln_home):
 def test_skill_list_json(openkiln_home):
     """skill list --json returns valid JSON."""
     import json
+
     runner.invoke(app, ["init"])
     runner.invoke(app, ["skill", "install", "crm"])
     result = runner.invoke(app, ["skill", "list", "--json"])
@@ -116,15 +115,11 @@ def test_skill_update_applies_pending_migrations(openkiln_home, tmp_path):
     runner.invoke(app, ["skill", "install", "crm"])
 
     # verify initial migrations were tracked
-    from openkiln import config
     crm_db = openkiln_home / "skills" / "crm.db"
     import sqlite3
+
     conn = sqlite3.connect(crm_db)
-    applied = {
-        row[0] for row in conn.execute(
-            "SELECT filename FROM schema_migrations"
-        ).fetchall()
-    }
+    applied = {row[0] for row in conn.execute("SELECT filename FROM schema_migrations").fetchall()}
     conn.close()
     assert "001_initial.sql" in applied
     assert "002_add_touches.sql" in applied
@@ -156,10 +151,9 @@ def test_auto_migration_runs_on_startup(openkiln_home):
     # verify all migrations applied after install
     crm_db = openkiln_home / "skills" / "crm.db"
     import sqlite3
+
     conn = sqlite3.connect(crm_db)
-    count = conn.execute(
-        "SELECT COUNT(*) FROM schema_migrations"
-    ).fetchone()[0]
+    count = conn.execute("SELECT COUNT(*) FROM schema_migrations").fetchone()[0]
     conn.close()
     # should have 3 migrations applied (001, 002, 003)
     assert count == 3

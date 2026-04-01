@@ -3,14 +3,14 @@ Smartlead workflow interface — Sink implementation.
 
 SmartleadSink pushes contacts to a Smartlead campaign.
 """
+
 from __future__ import annotations
 
 from typing import Any
 
 from openkiln.core import Sink
-from openkiln.skills.smartlead import CONTACT_TO_SMARTLEAD, INTERNAL_FIELDS
+from openkiln.skills.smartlead import CONTACT_TO_SMARTLEAD, INTERNAL_FIELDS, queries
 from openkiln.skills.smartlead.api import get_client
-from openkiln.skills.smartlead import queries
 
 BATCH_SIZE = 400  # Smartlead API limit
 

@@ -1,14 +1,14 @@
 """OrbiSearch CLI commands for OpenKiln."""
+
 from __future__ import annotations
 
 import json
-from typing import Optional
 
 import typer
 from rich.console import Console
 from rich.table import Table
 
-from openkiln.skills.orbisearch.api import get_client, OrbiSearchError
+from openkiln.skills.orbisearch.api import OrbiSearchError, get_client
 
 app = typer.Typer(
     name="orbisearch",

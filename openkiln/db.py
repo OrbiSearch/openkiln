@@ -7,7 +7,6 @@ from typing import Iterator
 
 from openkiln import config
 
-
 # ── Constants ─────────────────────────────────────────────────
 
 BATCH_SIZE = 1000  # rows per batch for all read/write operations
@@ -15,12 +14,13 @@ BATCH_SIZE = 1000  # rows per batch for all read/write operations
 
 # ── Schema paths ──────────────────────────────────────────────
 
-PACKAGE_DIR  = Path(__file__).parent
-CORE_SCHEMA  = PACKAGE_DIR / "schema" / "core" / "001_initial.sql"
-SKILLS_DIR   = PACKAGE_DIR / "skills"
+PACKAGE_DIR = Path(__file__).parent
+CORE_SCHEMA = PACKAGE_DIR / "schema" / "core" / "001_initial.sql"
+SKILLS_DIR = PACKAGE_DIR / "skills"
 
 
 # ── Core connection ───────────────────────────────────────────
+
 
 def core_db_path() -> Path:
     """Returns the path to core.db from config."""
@@ -54,18 +54,13 @@ def get_connection(attach_skills: list[str] | None = None) -> sqlite3.Connection
                     f"Is '{skill_name}' installed? "
                     f"Run: openkiln skill install {skill_name}"
                 )
-            conn.execute(
-                f"ATTACH DATABASE ? AS {skill_name}",
-                (str(db_path),)
-            )
+            conn.execute(f"ATTACH DATABASE ? AS {skill_name}", (str(db_path),))
 
     return conn
 
 
 @contextmanager
-def connection(
-    attach_skills: list[str] | None = None
-) -> Iterator[sqlite3.Connection]:
+def connection(attach_skills: list[str] | None = None) -> Iterator[sqlite3.Connection]:
     """
     Context manager for a core.db connection.
     Closes connection on exit. Does not manage transactions.
@@ -88,9 +83,7 @@ def connection(
 
 
 @contextmanager
-def transaction(
-    attach_skills: list[str] | None = None
-) -> Iterator[sqlite3.Connection]:
+def transaction(attach_skills: list[str] | None = None) -> Iterator[sqlite3.Connection]:
     """
     Context manager for a transactional connection to core.db.
     Commits on clean exit. Rolls back on any exception.
@@ -123,6 +116,7 @@ def transaction(
 
 # ── Schema initialisation ─────────────────────────────────────
 
+
 def init_core() -> None:
     """
     Creates core.db and applies the core schema.
@@ -153,17 +147,11 @@ def init_skill(skill_name: str) -> list[str]:
     """
     schema_dir = SKILLS_DIR / skill_name / "schema"
     if not schema_dir.exists():
-        raise RuntimeError(
-            f"Schema directory not found for skill '{skill_name}': "
-            f"{schema_dir}"
-        )
+        raise RuntimeError(f"Schema directory not found for skill '{skill_name}': {schema_dir}")
 
     migration_files = sorted(schema_dir.glob("*.sql"))
     if not migration_files:
-        raise RuntimeError(
-            f"No schema migrations found for skill '{skill_name}': "
-            f"{schema_dir}"
-        )
+        raise RuntimeError(f"No schema migrations found for skill '{skill_name}': {schema_dir}")
 
     db_path = config.get().skill_db_path(skill_name)
     db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -181,9 +169,7 @@ def init_skill(skill_name: str) -> list[str]:
 
         # find which migrations have already been applied
         applied = {
-            row[0] for row in skill_conn.execute(
-                "SELECT filename FROM schema_migrations"
-            ).fetchall()
+            row[0] for row in skill_conn.execute("SELECT filename FROM schema_migrations").fetchall()
         }
 
         # legacy install detection: schema_migrations exists but is empty
@@ -191,18 +177,17 @@ def init_skill(skill_name: str) -> list[str]:
         # mark all migrations as applied without re-running them.
         if not applied:
             existing_tables = {
-                row[0] for row in skill_conn.execute(
-                    "SELECT name FROM sqlite_master WHERE type='table' "
-                    "AND name != 'schema_migrations'"
+                row[0]
+                for row in skill_conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name != 'schema_migrations'"
                 ).fetchall()
             }
             if existing_tables:
                 # db already has schema — mark all migrations as applied
                 for migration_file in migration_files:
                     skill_conn.execute(
-                        "INSERT OR IGNORE INTO schema_migrations "
-                        "(filename) VALUES (?)",
-                        (migration_file.name,)
+                        "INSERT OR IGNORE INTO schema_migrations (filename) VALUES (?)",
+                        (migration_file.name,),
                     )
                 skill_conn.commit()
                 return []  # nothing newly applied
@@ -223,20 +208,14 @@ def init_skill(skill_name: str) -> list[str]:
                     # column already exists — migration effectively applied
                     # mark as applied and continue
                     skill_conn.execute(
-                        "INSERT OR IGNORE INTO schema_migrations "
-                        "(filename) VALUES (?)",
-                        (filename,)
+                        "INSERT OR IGNORE INTO schema_migrations (filename) VALUES (?)", (filename,)
                     )
                     skill_conn.commit()
                     continue
-                raise RuntimeError(
-                    f"Migration failed: {filename}\n{e}"
-                ) from e
+                raise RuntimeError(f"Migration failed: {filename}\n{e}") from e
 
             skill_conn.execute(
-                "INSERT OR IGNORE INTO schema_migrations "
-                "(filename) VALUES (?)",
-                (filename,)
+                "INSERT OR IGNORE INTO schema_migrations (filename) VALUES (?)", (filename,)
             )
             skill_conn.commit()
             newly_applied.append(filename)
@@ -258,14 +237,12 @@ def migrate_installed_skills() -> None:
 
     try:
         with connection() as conn:
-            skills = conn.execute(
-                "SELECT skill_name FROM installed_skills"
-            ).fetchall()
+            skills = conn.execute("SELECT skill_name FROM installed_skills").fetchall()
 
         for row in skills:
             skill_name = row["skill_name"]
             try:
-                newly_applied = init_skill(skill_name)
+                init_skill(skill_name)
                 # silent on success — only log if migrations were applied
             except Exception:
                 pass  # never crash startup due to migration failure
@@ -274,6 +251,7 @@ def migrate_installed_skills() -> None:
 
 
 # ── Health check ──────────────────────────────────────────────
+
 
 def check_connection() -> bool:
     """
@@ -292,6 +270,7 @@ def check_connection() -> bool:
 
 
 # ── Batch helpers ─────────────────────────────────────────────
+
 
 def batch_read(
     conn: sqlite3.Connection,

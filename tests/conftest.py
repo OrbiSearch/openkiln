@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pytest
+
 from openkiln import config
 
 
@@ -22,24 +23,16 @@ def openkiln_home(tmp_path, monkeypatch):
     """
     # redirect all core paths
     monkeypatch.setattr("openkiln.config.OPENKILN_DIR", tmp_path)
-    monkeypatch.setattr(
-        "openkiln.config.CONFIG_PATH",
-        tmp_path / "config.toml"
-    )
-    monkeypatch.setattr(
-        "openkiln.config.DEFAULT_CORE_DB",
-        tmp_path / "core.db"
-    )
-    monkeypatch.setattr(
-        "openkiln.config.DEFAULT_SKILLS_DIR",
-        tmp_path / "skills"
-    )
+    monkeypatch.setattr("openkiln.config.CONFIG_PATH", tmp_path / "config.toml")
+    monkeypatch.setattr("openkiln.config.DEFAULT_CORE_DB", tmp_path / "core.db")
+    monkeypatch.setattr("openkiln.config.DEFAULT_SKILLS_DIR", tmp_path / "skills")
 
     # reset singleton so it re-reads config fresh for each test
     config.reset()
 
     # reset mounted skills so skill CLIs are re-discovered per test
     import openkiln.cli as cli_mod
+
     cli_mod._mounted_skills.clear()
 
     yield tmp_path

@@ -1,17 +1,15 @@
 from __future__ import annotations
 
 import os
-from pathlib import Path
-
 import tomllib  # built-in Python 3.11+
-
+from pathlib import Path
 
 # ── Paths ────────────────────────────────────────────────────
 
 OPENKILN_DIR = Path.home() / ".openkiln"
-CONFIG_PATH  = OPENKILN_DIR / "config.toml"
+CONFIG_PATH = OPENKILN_DIR / "config.toml"
 
-DEFAULT_CORE_DB    = OPENKILN_DIR / "core.db"
+DEFAULT_CORE_DB = OPENKILN_DIR / "core.db"
 DEFAULT_SKILLS_DIR = OPENKILN_DIR / "skills"
 
 
@@ -35,6 +33,7 @@ skills_dir = "{skills_dir}"
 
 # ── Config class ─────────────────────────────────────────────
 
+
 class Config:
     """
     Single source of truth for all runtime configuration.
@@ -48,17 +47,15 @@ class Config:
 
     def __init__(self) -> None:
         raw = _load_file()
-        db  = raw.get("database", {})
+        db = raw.get("database", {})
 
         # database paths — only thing core config owns
         self.core_db: Path = Path(
-            os.environ.get("OPENKILN_CORE_DB")
-            or db.get("core_db", str(DEFAULT_CORE_DB))
+            os.environ.get("OPENKILN_CORE_DB") or db.get("core_db", str(DEFAULT_CORE_DB))
         ).expanduser()
 
         self.skills_dir: Path = Path(
-            os.environ.get("OPENKILN_SKILLS_DIR")
-            or db.get("skills_dir", str(DEFAULT_SKILLS_DIR))
+            os.environ.get("OPENKILN_SKILLS_DIR") or db.get("skills_dir", str(DEFAULT_SKILLS_DIR))
         ).expanduser()
 
         # full raw config available for skill_config() lookups
@@ -86,6 +83,7 @@ class Config:
 
 
 # ── File loader ──────────────────────────────────────────────
+
 
 def _load_file() -> dict:
     """

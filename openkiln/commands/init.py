@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import typer
-from rich.console import Console
 from rich import print as rprint
+from rich.console import Console
 
 from openkiln import config, db
 
@@ -25,8 +25,8 @@ def run() -> None:
     # check if already initialised
     if cfg.core_db.exists():
         rprint(
-            f"[yellow]~/.openkiln/ already exists. Nothing to do.[/yellow]\n"
-            f"Run [bold]openkiln status[/bold] to verify your installation."
+            "[yellow]~/.openkiln/ already exists. Nothing to do.[/yellow]\n"
+            "Run [bold]openkiln status[/bold] to verify your installation."
         )
         raise typer.Exit()
 
@@ -45,7 +45,7 @@ def run() -> None:
     console.print(f"[green]✓[/green] Skills directory: {cfg.skills_dir}")
 
     console.print(
-        f"\n[bold green]OpenKiln is ready.[/bold green]\n"
-        f"Run [bold]openkiln status[/bold] to verify.\n"
-        f"Run [bold]openkiln skill install crm[/bold] to install your first skill."
+        "\n[bold green]OpenKiln is ready.[/bold green]\n"
+        "Run [bold]openkiln status[/bold] to verify.\n"
+        "Run [bold]openkiln skill install crm[/bold] to install your first skill."
     )

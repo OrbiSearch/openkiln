@@ -4,22 +4,22 @@ Tests for the workflow engine and interfaces.
 Covers: interface contracts, engine parsing, validation, execution
 with mock source/transform/sink, CLI commands.
 """
+
 from __future__ import annotations
 
-import json
 import tempfile
 from pathlib import Path
 
 from typer.testing import CliRunner
 
-from openkiln.cli import app
 from openkiln import db
-from openkiln.core import Source, Transform, Sink
+from openkiln.cli import app
+from openkiln.core import Sink, Source, Transform
 from openkiln.core.workflow import (
     WorkflowDef,
     parse_workflow,
-    validate_workflow,
     run_workflow,
+    validate_workflow,
 )
 
 runner = CliRunner()
@@ -31,6 +31,7 @@ runner = CliRunner()
 def test_source_is_abstract():
     """Source cannot be instantiated directly."""
     import pytest
+
     with pytest.raises(TypeError):
         Source()  # type: ignore[abstract]
 
@@ -38,6 +39,7 @@ def test_source_is_abstract():
 def test_transform_is_abstract():
     """Transform cannot be instantiated directly."""
     import pytest
+
     with pytest.raises(TypeError):
         Transform()  # type: ignore[abstract]
 
@@ -45,12 +47,14 @@ def test_transform_is_abstract():
 def test_sink_is_abstract():
     """Sink cannot be instantiated directly."""
     import pytest
+
     with pytest.raises(TypeError):
         Sink()  # type: ignore[abstract]
 
 
 def test_source_subclass():
     """A Source subclass can be instantiated."""
+
     class TestSource(Source):
         def read(self, **config):
             yield {"record_id": 1, "email": "a@b.com"}
@@ -63,6 +67,7 @@ def test_source_subclass():
 
 def test_transform_subclass():
     """A Transform subclass can process rows."""
+
     class TestTransform(Transform):
         def apply(self, row):
             row["processed"] = True
@@ -75,6 +80,7 @@ def test_transform_subclass():
 
 def test_transform_can_drop_rows():
     """A Transform can return None to drop a row."""
+
     class DropAll(Transform):
         def apply(self, row):
             return None
@@ -85,6 +91,7 @@ def test_transform_can_drop_rows():
 
 def test_sink_subclass():
     """A Sink subclass can write rows."""
+
     class TestSink(Sink):
         def __init__(self):
             self.written = []
@@ -105,24 +112,28 @@ def test_sink_subclass():
 def test_crm_source_implements_interface():
     """CrmSource is a valid Source subclass."""
     from openkiln.skills.crm.workflow import CrmSource
+
     assert issubclass(CrmSource, Source)
 
 
 def test_crm_sink_implements_interface():
     """CrmSink is a valid Sink subclass."""
     from openkiln.skills.crm.workflow import CrmSink
+
     assert issubclass(CrmSink, Sink)
 
 
 def test_orbisearch_transform_implements_interface():
     """OrbiSearchTransform is a valid Transform subclass."""
     from openkiln.skills.orbisearch.workflow import OrbiSearchTransform
+
     assert issubclass(OrbiSearchTransform, Transform)
 
 
 def test_smartlead_sink_implements_interface():
     """SmartleadSink is a valid Sink subclass."""
     from openkiln.skills.smartlead.workflow import SmartleadSink
+
     assert issubclass(SmartleadSink, Sink)
 
 
@@ -200,9 +211,7 @@ def test_run_workflow_dry_run(openkiln_home):
 
     # insert a test contact
     with db.transaction(attach_skills=["crm"]) as conn:
-        cursor = conn.execute(
-            "INSERT INTO records (type, record_status) VALUES ('contact', 'active')"
-        )
+        cursor = conn.execute("INSERT INTO records (type, record_status) VALUES ('contact', 'active')")
         rid = cursor.lastrowid
         conn.execute(
             "INSERT INTO crm.contacts (record_id, email, first_name) "
@@ -232,9 +241,7 @@ def test_run_workflow_apply(openkiln_home):
 
     # insert a test contact
     with db.transaction(attach_skills=["crm"]) as conn:
-        cursor = conn.execute(
-            "INSERT INTO records (type, record_status) VALUES ('contact', 'active')"
-        )
+        cursor = conn.execute("INSERT INTO records (type, record_status) VALUES ('contact', 'active')")
         rid = cursor.lastrowid
         conn.execute(
             "INSERT INTO crm.contacts (record_id, email, first_name, country) "
@@ -256,9 +263,7 @@ def test_run_workflow_apply(openkiln_home):
 
     # check workflow run was recorded
     with db.connection() as conn:
-        run = conn.execute(
-            "SELECT * FROM workflow_runs WHERE workflow_name = 'test-apply'"
-        ).fetchone()
+        run = conn.execute("SELECT * FROM workflow_runs WHERE workflow_name = 'test-apply'").fetchone()
     assert run is not None
     assert run["status"] == "complete"
 

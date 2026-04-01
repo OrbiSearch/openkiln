@@ -1,4 +1,4 @@
-from openkiln import db, config
+from openkiln import db
 
 
 def test_init_core_creates_database(openkiln_home):
@@ -31,9 +31,8 @@ def test_core_schema_tables_exist(openkiln_home):
     db.init_core()
     with db.connection() as conn:
         tables = {
-            row[0] for row in conn.execute(
-                "SELECT name FROM sqlite_master WHERE type='table'"
-            ).fetchall()
+            row[0]
+            for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
         }
     assert "records" in tables
     assert "workflow_runs" in tables
@@ -46,10 +45,7 @@ def test_batch_read_yields_correct_batches(openkiln_home):
 
     # insert 25 records
     with db.transaction() as conn:
-        conn.executemany(
-            "INSERT INTO records (type) VALUES (?)",
-            [("contact",)] * 25
-        )
+        conn.executemany("INSERT INTO records (type) VALUES (?)", [("contact",)] * 25)
 
     # read with small batch size to verify batching
     original_batch_size = db.BATCH_SIZE
@@ -62,7 +58,7 @@ def test_batch_read_yields_correct_batches(openkiln_home):
 
     db.BATCH_SIZE = original_batch_size
 
-    assert len(batches) == 3           # 10 + 10 + 5
+    assert len(batches) == 3  # 10 + 10 + 5
     assert len(batches[0]) == 10
     assert len(batches[1]) == 10
     assert len(batches[2]) == 5
@@ -80,9 +76,7 @@ def test_batch_write_inserts_rows(openkiln_home):
     assert affected == 3
 
     with db.connection() as conn:
-        count = conn.execute(
-            "SELECT COUNT(*) FROM records"
-        ).fetchone()[0]
+        count = conn.execute("SELECT COUNT(*) FROM records").fetchone()[0]
     assert count == 3
 
 
@@ -92,15 +86,11 @@ def test_transaction_rolls_back_on_error(openkiln_home):
 
     try:
         with db.transaction() as conn:
-            conn.execute(
-                "INSERT INTO records (type) VALUES (?)", ("contact",)
-            )
+            conn.execute("INSERT INTO records (type) VALUES (?)", ("contact",))
             raise RuntimeError("simulated failure")
     except RuntimeError:
         pass
 
     with db.connection() as conn:
-        count = conn.execute(
-            "SELECT COUNT(*) FROM records"
-        ).fetchone()[0]
+        count = conn.execute("SELECT COUNT(*) FROM records").fetchone()[0]
     assert count == 0  # rolled back — nothing written

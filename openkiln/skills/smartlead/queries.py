@@ -3,6 +3,7 @@ Smartlead skill database queries.
 
 All functions open their own connection to smartlead.db.
 """
+
 from __future__ import annotations
 
 import json
@@ -51,7 +52,8 @@ def upsert_campaign(campaign: dict) -> None:
                 campaign.get("client_id"),
                 campaign.get("timezone"),
                 json.dumps(campaign.get("days_of_the_week"))
-                if campaign.get("days_of_the_week") else None,
+                if campaign.get("days_of_the_week")
+                else None,
                 campaign.get("start_hour"),
                 campaign.get("end_hour"),
                 campaign.get("max_leads_per_day"),
@@ -142,9 +144,7 @@ def list_campaigns() -> list[sqlite3.Row]:
     """List all locally synced campaigns."""
     conn = _connection()
     try:
-        return conn.execute(
-            "SELECT * FROM campaigns ORDER BY id DESC"
-        ).fetchall()
+        return conn.execute("SELECT * FROM campaigns ORDER BY id DESC").fetchall()
     finally:
         conn.close()
 
@@ -166,9 +166,7 @@ def get_latest_stats(campaign_id: int) -> sqlite3.Row | None:
     conn = _connection()
     try:
         return conn.execute(
-            "SELECT * FROM campaign_stats "
-            "WHERE campaign_id = ? "
-            "ORDER BY synced_at DESC LIMIT 1",
+            "SELECT * FROM campaign_stats WHERE campaign_id = ? ORDER BY synced_at DESC LIMIT 1",
             (campaign_id,),
         ).fetchone()
     finally:
@@ -180,8 +178,7 @@ def get_sequences(campaign_id: int) -> list[sqlite3.Row]:
     conn = _connection()
     try:
         return conn.execute(
-            "SELECT * FROM sequences "
-            "WHERE campaign_id = ? ORDER BY seq_number",
+            "SELECT * FROM sequences WHERE campaign_id = ? ORDER BY seq_number",
             (campaign_id,),
         ).fetchall()
     finally:
@@ -234,8 +231,7 @@ def get_pushes_for_campaign(campaign_id: int) -> list[sqlite3.Row]:
     conn = _connection()
     try:
         return conn.execute(
-            "SELECT * FROM lead_pushes "
-            "WHERE campaign_id = ? ORDER BY pushed_at DESC",
+            "SELECT * FROM lead_pushes WHERE campaign_id = ? ORDER BY pushed_at DESC",
             (campaign_id,),
         ).fetchall()
     finally:

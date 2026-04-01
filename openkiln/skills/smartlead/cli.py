@@ -9,6 +9,7 @@ from rich.table import Table
 from rich import print as rprint
 
 from openkiln.skills.smartlead.api import get_client, SmartleadError
+from openkiln.skills.smartlead import queries
 
 app = typer.Typer(
     name="smartlead",
@@ -252,3 +253,70 @@ def accounts_list(
     console.print()
     console.print(table)
     console.print()
+
+
+# ── Sync ─────────────────────────────────────────────────────
+
+
+@app.command("sync")
+def sync(
+    output_json: bool = typer.Option(
+        False, "--json", help="Output as JSON."
+    ),
+) -> None:
+    """Sync campaigns, sequences, and stats from Smartlead to local DB."""
+    try:
+        client = get_client()
+    except SmartleadError as e:
+        _handle_api_error(e)
+
+    console.print("Syncing campaigns from Smartlead...")
+
+    try:
+        campaigns_data = client.list_campaigns()
+    except SmartleadError as e:
+        _handle_api_error(e)
+
+    synced = []
+    for campaign in campaigns_data:
+        cid = campaign.get("id")
+        if cid is None:
+            continue
+
+        # sync campaign metadata
+        queries.upsert_campaign(campaign)
+
+        # sync sequences
+        try:
+            seqs = client.get_sequences(cid)
+            queries.upsert_sequences(cid, seqs)
+        except SmartleadError:
+            seqs = []
+
+        # sync analytics snapshot
+        try:
+            analytics = client.get_campaign_analytics(cid)
+            queries.insert_campaign_stats(cid, analytics)
+        except SmartleadError:
+            analytics = {}
+
+        synced.append({
+            "id": cid,
+            "name": campaign.get("name"),
+            "status": campaign.get("status"),
+            "sequences": len(seqs),
+        })
+
+        if not output_json:
+            console.print(
+                f"  [green]\u2713[/green] {campaign.get('name', cid)} "
+                f"({campaign.get('status', '?')}, "
+                f"{len(seqs)} sequences)"
+            )
+
+    if output_json:
+        typer.echo(json.dumps({"synced": synced}, indent=2))
+    else:
+        console.print(
+            f"\n[bold green]Synced {len(synced)} campaigns.[/bold green]\n"
+        )

@@ -11,6 +11,16 @@ from typing import Any, Iterator
 from openkiln import db
 from openkiln.core import Source, Sink
 
+# Columns that exist in the contacts table and can be updated.
+# The sink only writes these — transform-added fields are ignored.
+_CONTACT_COLUMNS = {
+    "first_name", "last_name", "full_name", "email", "phone",
+    "linkedin_url", "company_name", "job_title", "department",
+    "seniority", "city", "country", "timezone", "segment", "tags",
+    "lead_score", "source", "last_contacted_at",
+    "lifecycle_stage", "lead_status",
+}
+
 
 class CrmSource(Source):
     """
@@ -99,16 +109,11 @@ class CrmSink(Sink):
                 if record_id is None:
                     continue
 
-                # build SET clause from row fields that exist in contacts
-                # skip internal/computed fields
-                skip = {
-                    "record_id", "created_at", "updated_at",
-                    "company_record_id",
-                }
+                # build SET clause — only update known contact columns
                 set_parts = []
                 values = []
                 for key, val in row.items():
-                    if key in skip or val is None:
+                    if key not in _CONTACT_COLUMNS or val is None:
                         continue
                     set_parts.append(f"{key} = ?")
                     values.append(val)

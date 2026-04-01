@@ -9,6 +9,7 @@ from rich.console import Console
 from rich.table import Table
 from rich import print as rprint
 
+from openkiln import db
 from openkiln.skills.smartlead.api import get_client, SmartleadError
 from openkiln.skills.smartlead import queries, CRM_TO_SMARTLEAD
 
@@ -592,48 +593,78 @@ def _map_contact_to_lead(contact: dict) -> dict:
 
 
 def _load_contacts(
+    skill: str,
     segment: str | None,
     tag: str | None,
     list_name: str | None,
     lifecycle: str | None,
     status: str | None,
-) -> list:
-    """Load contacts from CRM with filters. Returns list of Row objects."""
-    from openkiln.skills.crm import queries as crm_queries
+) -> list[dict]:
+    """Load contacts from a skill's DB via the attach layer.
+
+    Queries the skill's contacts table directly through
+    db.connection(attach_skills=[skill]). No Python imports
+    from the skill — only SQL via attached databases.
+    """
+    where: list[str] = []
+    params: list = []
 
     if list_name:
-        # get all members — use a high limit
-        return crm_queries.get_list_members(list_name, limit=100_000)
+        # query via list_members join
+        sql = (
+            f"SELECT c.* FROM {skill}.contacts c "
+            f"JOIN {skill}.list_members lm ON lm.record_id = c.record_id "
+            f"JOIN {skill}.lists l ON l.id = lm.list_id "
+            f"WHERE l.name = ? "
+            f"ORDER BY lm.added_at DESC"
+        )
+        params.append(list_name)
+        with db.connection(attach_skills=[skill]) as conn:
+            rows = conn.execute(sql, params).fetchall()
+        return [dict(r) for r in rows]
 
-    # build filter kwargs
-    kwargs: dict = {"limit": 100_000}
     if segment:
-        kwargs["segment"] = segment
+        where.append("segment = ?")
+        params.append(segment)
+
     if tag:
-        kwargs["tag"] = tag
+        where.append(
+            "(tags LIKE ? OR tags LIKE ? OR tags LIKE ? OR tags = ?)"
+        )
+        params.extend([f"{tag},%", f"%,{tag},%", f"%,{tag}", tag])
 
-    contacts = crm_queries.list_contacts(**kwargs)
-
-    # apply lifecycle/status filters (not built into list_contacts)
     if lifecycle:
-        contacts = [c for c in contacts if c["lifecycle_stage"] == lifecycle]
-    if status:
-        contacts = [c for c in contacts if c["lead_status"] == status]
+        where.append("lifecycle_stage = ?")
+        params.append(lifecycle)
 
-    return contacts
+    if status:
+        where.append("lead_status = ?")
+        params.append(status)
+
+    sql = f"SELECT * FROM {skill}.contacts"
+    if where:
+        sql += " WHERE " + " AND ".join(where)
+    sql += " ORDER BY created_at DESC"
+
+    with db.connection(attach_skills=[skill]) as conn:
+        rows = conn.execute(sql, params).fetchall()
+    return [dict(r) for r in rows]
 
 
 @app.command("push")
 def push(
     campaign_id: int = typer.Argument(..., help="Smartlead campaign ID."),
+    skill: str = typer.Option(
+        "crm", "--skill", help="Skill to read contacts from."
+    ),
     segment: Optional[str] = typer.Option(
-        None, "--segment", help="Filter CRM contacts by segment."
+        None, "--segment", help="Filter contacts by segment."
     ),
     tag: Optional[str] = typer.Option(
-        None, "--tag", help="Filter CRM contacts by tag."
+        None, "--tag", help="Filter contacts by tag."
     ),
     list_name: Optional[str] = typer.Option(
-        None, "--list", help="Push contacts from a CRM list."
+        None, "--list", help="Push contacts from a named list."
     ),
     lifecycle: Optional[str] = typer.Option(
         None, "--lifecycle", help="Filter by lifecycle stage."
@@ -648,16 +679,17 @@ def push(
         False, "--json", help="Output as JSON."
     ),
 ) -> None:
-    """Push CRM contacts to a Smartlead campaign.
+    """Push contacts to a Smartlead campaign.
 
     Default is dry run — shows what would be pushed. Use --apply to push.
     Contacts already pushed to this campaign are skipped (dedup by email).
+    Reads contacts from the skill specified by --skill (default: crm).
     """
-    # load contacts from CRM
+    # load contacts via db attach layer
     try:
-        contacts = _load_contacts(segment, tag, list_name, lifecycle, lead_status)
-    except Exception as e:
-        rprint(f"[red]\u2717 Failed to load contacts: {e}[/red]")
+        contacts = _load_contacts(skill, segment, tag, list_name, lifecycle, lead_status)
+    except RuntimeError as e:
+        rprint(f"[red]\u2717 {e}[/red]")
         raise typer.Exit(code=1)
 
     if not contacts:
@@ -893,21 +925,22 @@ def monitor(
 @app.command("sync-touches")
 def sync_touches(
     campaign_id: int = typer.Argument(..., help="Campaign ID."),
+    skill: str = typer.Option(
+        "crm", "--skill", help="Skill to write touches to."
+    ),
     apply: bool = typer.Option(
-        False, "--apply", help="Actually create CRM touches. Default is dry run."
+        False, "--apply", help="Actually create touches. Default is dry run."
     ),
     output_json: bool = typer.Option(
         False, "--json", help="Output as JSON."
     ),
 ) -> None:
-    """Sync Smartlead engagement back to CRM as touches.
+    """Sync Smartlead engagement back as touches.
 
-    Pulls lead-level stats from Smartlead for contacts that were pushed
-    from CRM. Creates touch records for replied/bounced events.
-    Skips contacts that already have a touch for this campaign.
+    Pulls lead-level stats from Smartlead for contacts that were pushed.
+    Creates touch records for replied events via the db attach layer.
+    No Python imports from other skills — writes directly via SQL.
     """
-    from openkiln.skills.crm import queries as crm_queries
-
     # get local push records for this campaign
     pushes = queries.get_pushes_for_campaign(campaign_id)
     if not pushes:
@@ -989,14 +1022,14 @@ def sync_touches(
             return
 
         console.print(f"\n[bold]Dry run — sync touches for campaign {campaign_id}[/bold]")
-        console.print(f"  Leads matched to CRM: {len(updated_pushes)}")
+        console.print(f"  Leads matched: {len(updated_pushes)}")
         console.print(f"  New reply touches to create: {len(touches_to_create)}")
         if touches_to_create:
             console.print("\nRun with [bold]--apply[/bold] to create touches.")
         console.print()
         return
 
-    # apply: update push records and create CRM touches
+    # apply: update push records in smartlead.db
     conn = queries._connection()
     try:
         for update in updated_pushes:
@@ -1017,15 +1050,30 @@ def sync_touches(
     finally:
         conn.close()
 
-    # create CRM touches
-    for touch in touches_to_create:
-        crm_queries.log_touch(
-            record_id=touch["record_id"],
-            channel=touch["channel"],
-            direction=touch["direction"],
-            note=touch["note"],
-            campaign_id=touch["campaign_id"],
-        )
+    # create touches via db attach layer — no skill Python imports
+    with db.transaction(attach_skills=[skill]) as conn:
+        for touch in touches_to_create:
+            conn.execute(
+                f"""
+                INSERT INTO {skill}.touches
+                    (record_id, channel, direction, note, campaign_id)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (
+                    touch["record_id"], touch["channel"],
+                    touch["direction"], touch["note"],
+                    touch["campaign_id"],
+                ),
+            )
+            # update last_contacted_at on the contact
+            conn.execute(
+                f"""
+                UPDATE {skill}.contacts
+                SET last_contacted_at = datetime('now')
+                WHERE record_id = ?
+                """,
+                (touch["record_id"],),
+            )
 
     summary["dry_run"] = False
 
@@ -1037,5 +1085,5 @@ def sync_touches(
         f"\n[bold green]\u2713 Synced engagement for campaign {campaign_id}[/bold green]"
     )
     console.print(f"  Updated {len(updated_pushes)} lead push records")
-    console.print(f"  Created {len(touches_to_create)} CRM touches")
+    console.print(f"  Created {len(touches_to_create)} touches in {skill}")
     console.print()

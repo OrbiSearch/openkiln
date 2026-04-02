@@ -1,4 +1,4 @@
-# OpenKiln 🔥
+# 🔥 OpenKiln 
 
 Open-source, agentic GTM data workflow CLI. It's like OpenClaw & Clay had a baby!
 

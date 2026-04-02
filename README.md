@@ -153,7 +153,7 @@ how filters work, discovering components, and tips.
 
 **Recommended setup:** Run OpenKiln on an always-on server (VPS, home server,
 cloud instance). Access it from any device via [Telegram](https://telegram.org)
-through [Claude Code channels](https://code.claude.com/docs/en/channels-reference), or any LLM coding agent.
+through [Claude Code channels](https://code.claude.com/docs/en/channels), or any LLM coding agent.
 
 This gives you:
 - Persistent data that doesn't disappear when you close your laptop

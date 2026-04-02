@@ -131,6 +131,10 @@ def list_skills(
         for name in available:
             console.print(f"  [dim]○[/dim]  {name:<20} [dim]run: openkiln skill install {name}[/dim]")
 
+    console.print(
+        "\n[dim]Don't see what you need? Build a skill:[/dim] "
+        "[dim]https://github.com/OrbiSearch/openkiln-skill-maker[/dim]"
+    )
     console.print()
 
 

@@ -82,7 +82,8 @@ openkiln smartlead schedule <campaign_id> \
   --days 1,2,3,4,5 \
   --start-hour "09:00" \
   --end-hour "17:00" \
-  --max-leads-per-day 50
+  --max-leads-per-day 50 \
+  --min-gap 35
 
 # delete a campaign
 openkiln smartlead delete <campaign_id>

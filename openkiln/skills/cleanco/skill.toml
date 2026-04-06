@@ -1,0 +1,21 @@
+[skill]
+name = "cleanco"
+version = "0.1.0"
+description = "Clean company names for outreach using OpenAI."
+author = "OrbiSearch"
+
+[[skill.provides]]
+type = "transform"
+name = "cleanco.company_name"
+description = "Clean company names for use in cold email"
+module = "openkiln.skills.cleanco.workflow"
+class = "CleanCompanyName"
+
+[skill.requires]
+skills = []
+
+[[skill.config]]
+key = "OPENAI_API_KEY"
+env_var = "OPENAI_API_KEY"
+config_path = "skills.cleanco.api_key"
+required = true

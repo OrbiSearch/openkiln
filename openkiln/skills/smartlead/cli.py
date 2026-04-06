@@ -419,11 +419,22 @@ def duplicate(
                     "seq_number": seq.get("seq_number"),
                     "seq_delay_details": {"delay_in_days": delay_days},
                 }
-                # copy subject/body from top-level or first variant
+                # copy variants if present, otherwise fall back to top-level subject/body
                 variants = seq.get("sequence_variants", [])
                 if variants:
-                    entry["subject"] = variants[0].get("subject", "")
-                    entry["email_body"] = variants[0].get("email_body", "")
+                    active_variants = [v for v in variants if not v.get("is_deleted")]
+                    entry["seq_variants"] = [
+                        {
+                            "subject": v.get("subject", ""),
+                            "email_body": v.get("email_body", ""),
+                            "variant_label": v.get("variant_label", ""),
+                        }
+                        for v in active_variants
+                    ]
+                    # API also needs top-level subject/body
+                    first = active_variants[0] if active_variants else {}
+                    entry["subject"] = first.get("subject", "")
+                    entry["email_body"] = first.get("email_body", "")
                 elif seq.get("subject"):
                     entry["subject"] = seq.get("subject", "")
                     entry["email_body"] = seq.get("email_body", "")
@@ -493,11 +504,17 @@ def sequence(
       {
         "seq_number": 1,
         "seq_delay_details": {"delay_in_days": 0},
-        "variants": [
-          {"subject": "...", "email_body": "...", "variant_label": "A"}
+        "subject": "Default subject",
+        "email_body": "<div>Default body</div>",
+        "seq_variants": [
+          {"subject": "Variant A subject", "email_body": "<div>...</div>", "variant_label": "A"},
+          {"subject": "Variant B subject", "email_body": "<div>...</div>", "variant_label": "B"}
         ]
       }
     ]
+
+    Steps without seq_variants use subject/email_body directly.
+    Steps with seq_variants also need a top-level subject/email_body (used as fallback).
     """
     content = file.read_text()
 

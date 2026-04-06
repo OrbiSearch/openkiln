@@ -95,7 +95,11 @@ openkiln smartlead delete <campaign_id>
     "seq_number": 1,
     "seq_delay_details": {"delay_in_days": 0},
     "subject": "Hello {{first_name}}",
-    "email_body": "<div>Your email body here</div>"
+    "email_body": "<div>Your email body here</div>",
+    "seq_variants": [
+      {"subject": "Variant A", "email_body": "<div>A body</div>", "variant_label": "A"},
+      {"subject": "Variant B", "email_body": "<div>B body</div>", "variant_label": "B"}
+    ]
   },
   {
     "seq_number": 2,
@@ -105,6 +109,13 @@ openkiln smartlead delete <campaign_id>
   }
 ]
 ```
+
+A/B testing: add `seq_variants` to any step. Each variant needs
+`subject`, `email_body`, and `variant_label` (A, B, C, etc.).
+A top-level `subject` and `email_body` are still required alongside
+variants. Steps without `seq_variants` use subject/email_body directly.
+
+The `duplicate` command preserves all variants when copying campaigns.
 
 ## Pushing contacts
 

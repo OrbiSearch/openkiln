@@ -13,7 +13,7 @@ import httpx
 
 from openkiln import config
 
-BASE_URL = "https://api.orbisearch.com"
+DEFAULT_BASE_URL = "https://api.orbisearch.com"
 REQUEST_TIMEOUT = 75.0
 MAX_RETRIES = 3
 MIN_REQUEST_INTERVAL = 0.06  # ~16 req/s to stay under recommended rate
@@ -30,8 +30,9 @@ class OrbiSearchError(Exception):
 class OrbiSearchClient:
     """OrbiSearch API client. All methods return parsed JSON."""
 
-    def __init__(self, api_key: str) -> None:
+    def __init__(self, api_key: str, base_url: str = DEFAULT_BASE_URL) -> None:
         self._api_key = api_key
+        self._base_url = base_url
         self._last_request_at: float = 0.0
 
     # ── HTTP layer ──────────────────────────────────────────
@@ -53,7 +54,7 @@ class OrbiSearchClient:
         json_body: Any | None = None,
     ) -> Any:
         self._throttle()
-        url = f"{BASE_URL}{path}"
+        url = f"{self._base_url}{path}"
         last_err: Exception | None = None
 
         for attempt in range(1, MAX_RETRIES + 1):
@@ -144,6 +145,21 @@ def _resolve_api_key() -> str:
     )
 
 
+def _resolve_base_url() -> str:
+    """Resolve API base URL from env var or config.
+
+    Check order: ORBISEARCH_API_URL env var → config.toml → default.
+    """
+    url = os.environ.get("ORBISEARCH_API_URL")
+    if url:
+        return url.rstrip("/")
+    cfg = config.get()
+    url = cfg.skill_config("orbisearch").get("api_url", "")
+    if url:
+        return url.rstrip("/")
+    return DEFAULT_BASE_URL
+
+
 def get_client() -> OrbiSearchClient:
-    """Returns a client using the configured API key."""
-    return OrbiSearchClient(_resolve_api_key())
+    """Returns a client using the configured API key and base URL."""
+    return OrbiSearchClient(_resolve_api_key(), _resolve_base_url())

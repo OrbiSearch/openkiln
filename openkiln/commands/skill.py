@@ -291,6 +291,7 @@ def _append_config_section(skill_name: str) -> None:
     config_templates: dict[str, str] = {
         "orbisearch": ('\n[skills.orbisearch]\napi_key = ""  # get your free key at orbisearch.com\n'),
         "smartlead": ('\n[skills.smartlead]\napi_key = ""\n'),
+        "emailguard": ('\n[skills.emailguard]\napi_key = ""  # Bearer token from app.emailguard.io\n'),
     }
 
     template = config_templates.get(skill_name)

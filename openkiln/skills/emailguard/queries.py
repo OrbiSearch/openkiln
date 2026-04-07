@@ -193,8 +193,7 @@ def get_account_history(account_email: str, limit: int = 10) -> list[sqlite3.Row
     conn = _connection()
     try:
         return conn.execute(
-            "SELECT * FROM account_scores WHERE account_email = ? "
-            "ORDER BY tested_at DESC LIMIT ?",
+            "SELECT * FROM account_scores WHERE account_email = ? ORDER BY tested_at DESC LIMIT ?",
             (account_email, limit),
         ).fetchall()
     finally:

@@ -1,0 +1,14 @@
+[skill]
+name = "emailguard"
+version = "0.1.0"
+description = "Inbox placement testing via the EmailGuard API."
+author = "OrbiSearch"
+
+[skill.requires]
+skills = []
+
+[[skill.config]]
+key = "EMAILGUARD_API_KEY"
+env_var = "EMAILGUARD_API_KEY"
+config_path = "skills.emailguard.api_key"
+required = true

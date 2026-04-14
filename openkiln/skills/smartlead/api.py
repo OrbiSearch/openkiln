@@ -275,9 +275,25 @@ class SmartleadClient:
             body["max_new_leads_per_day"] = max_leads_per_day
         return self._post(f"/campaigns/{campaign_id}/schedule", body)
 
+    # GET returns DONT_EMAIL_OPEN / DONT_LINK_CLICK but POST requires
+    # DONT_TRACK_EMAIL_OPEN / DONT_TRACK_LINK_CLICK.
+    _TRACK_SETTINGS_WRITE_MAP: dict[str, str] = {
+        "DONT_EMAIL_OPEN": "DONT_TRACK_EMAIL_OPEN",
+        "DONT_LINK_CLICK": "DONT_TRACK_LINK_CLICK",
+    }
+
     def update_campaign_settings(self, campaign_id: int, settings: dict) -> Any:
-        """Update campaign settings (track_settings, stop_lead_settings, etc)."""
-        return self._post(f"/campaigns/{campaign_id}/settings", settings)
+        """Update campaign settings (track_settings, stop_lead_settings, etc).
+
+        Automatically maps track_settings values from the GET format
+        to the POST format expected by the API.
+        """
+        body = dict(settings)
+        if "track_settings" in body and isinstance(body["track_settings"], list):
+            body["track_settings"] = [
+                self._TRACK_SETTINGS_WRITE_MAP.get(v, v) for v in body["track_settings"]
+            ]
+        return self._post(f"/campaigns/{campaign_id}/settings", body)
 
     def delete_campaign(self, campaign_id: int) -> Any:
         """Delete a campaign."""

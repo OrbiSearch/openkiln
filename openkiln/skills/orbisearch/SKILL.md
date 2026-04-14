@@ -23,6 +23,22 @@ Get a free API key at orbisearch.com.
 If no key is configured, commands requiring this skill will fail
 with instructions to set the key.
 
+### Custom API URL (optional)
+
+To point at a different OrbiSearch instance (e.g. staging):
+
+```bash
+# environment variable
+export ORBISEARCH_API_URL=https://staging.orbisearch.com/api
+
+# or config file
+[skills.orbisearch]
+api_key = "your-key-here"
+api_url = "https://staging.orbisearch.com/api"
+```
+
+If not set, defaults to `https://api.orbisearch.com`.
+
 ## CLI Commands
 
 ### verify
